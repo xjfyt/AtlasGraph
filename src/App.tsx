@@ -12,7 +12,6 @@ import Header from "./components/Header";
 import ContextMenu from "./components/ContextMenu";
 import DetailPanel from "./components/DetailPanel";
 import GraphToolbar, { ActiveTool } from "./components/GraphToolbar";
-import CreationModal, { CreationModalConfig } from "./components/CreationModal";
 import { IconLayout, IconGraph, IconTable, IconRaw, IconMaximize, IconSpinner, IconPlay, IconX } from "./components/icons";
 const GRAPH_COLORS = ["#F4B5BD", "#A5E1D3", "#FCE49E", "#CDB4DB", "#B9E1F9", "#FFDAC1"];
 
@@ -24,6 +23,7 @@ interface DetailInfo {
   labels?: string[];
   source?: string;
   target?: string;
+  isTemp?: boolean;
   properties: Record<string, any>;
 }
 
@@ -119,7 +119,7 @@ function App() {
   const [editValue, setEditValue] = useState("");
   const [savingProp, setSavingProp] = useState(false);
   const [activeTool, setActiveTool] = useState<ActiveTool>("pointer");
-  const [creationConfig, setCreationConfig] = useState<CreationModalConfig | null>(null);
+  const [tempData, setTempData] = useState<{ nodes: any[], edges: any[] }>({ nodes: [], edges: [] });
   const [drawingEdgeSource, setDrawingEdgeSource] = useState<string | null>(null);
   const [addingProp, setAddingProp] = useState(false);
   const [newPropKey, setNewPropKey] = useState("");
@@ -248,6 +248,7 @@ function App() {
     setConnectMsg(null);
     setDatabases([]);
     setGraphData({ nodes: [], edges: [] });
+    setTempData({ nodes: [], edges: [] });
     setSelectedDb(dbType === "neo4j" ? "neo4j" : "default");
     setSchemaLabels([]);
     setSchemaRelTypes([]);
@@ -309,6 +310,7 @@ function App() {
     setExecTime(null);
     setDetail(null);
     setContextMenu(null);
+    setTempData({ nodes: [], edges: [] });
     const t0 = performance.now();
     try {
       const result: any = await invoke("execute_cypher", {
@@ -333,7 +335,22 @@ function App() {
         setDrawingEdgeSource(nodeId);
       } else {
         if (drawingEdgeSource !== nodeId) {
-          setCreationConfig({ type: "edge", sourceId: drawingEdgeSource, targetId: nodeId });
+          const tempId = `temp_edge_${Date.now()}`;
+          const newEdge = { id: tempId, source: drawingEdgeSource, target: nodeId, label: "Unassigned", properties: {}, isTemp: true };
+          setTempData(prev => ({ ...prev, edges: [...prev.edges, newEdge] }));
+          setDrawingEdgeSource(null);
+          setActiveTool("pointer");
+          setTimeout(() => {
+            setDetail({
+              type: "edge",
+              id: tempId,
+              label: "Unassigned",
+              source: drawingEdgeSource,
+              target: nodeId,
+              properties: {},
+              isTemp: true
+            });
+          }, 50);
         } else {
           setDrawingEdgeSource(null);
         }
@@ -341,7 +358,8 @@ function App() {
       return;
     }
 
-    const node = graphData.nodes.find((n) => String(n.id) === String(nodeId));
+    const allNodes = [...graphData.nodes, ...tempData.nodes];
+    const node = allNodes.find((n) => String(n.id) === String(nodeId));
     if (node) {
       const props = node.properties || {};
       const labels = props._labels || [];
@@ -350,16 +368,18 @@ function App() {
         id: node.id,
         labels: labels,
         properties: props,
+        isTemp: node.isTemp
       });
     }
-  }, [graphData, drawingEdgeSource, activeTool]);
+  }, [graphData, tempData, drawingEdgeSource, activeTool]);
 
   const handleEdgeClick = useCallback((edgeId: string) => {
     setContextMenu(null);
     if (activeTool !== "pointer") {
       setActiveTool("pointer");
     }
-    const edge = graphData.edges.find((e) => {
+    const allEdges = [...graphData.edges, ...tempData.edges];
+    const edge = allEdges.find((e) => {
       const eid = e.id || `${e.source}-${e.target}`;
       return String(eid) === String(edgeId);
     });
@@ -371,15 +391,28 @@ function App() {
         source: edge.source,
         target: edge.target,
         properties: edge.properties || {},
+        isTemp: edge.isTemp
       });
     }
-  }, [graphData, activeTool]);
+  }, [graphData, tempData, activeTool]);
 
   const handleCanvasClick = useCallback(() => {
     setDetail(null);
     setContextMenu(null);
     if (activeTool === "create_node") {
-      setCreationConfig({ type: "node" });
+      const tempId = `temp_node_${Date.now()}`;
+      const newNode = { id: tempId, properties: { _labels: ["NewEntity"], name: "未保存节点" }, isTemp: true };
+      setTempData(prev => ({ ...prev, nodes: [...prev.nodes, newNode] }));
+      setActiveTool("pointer");
+      setTimeout(() => {
+        setDetail({
+          type: "node",
+          id: tempId,
+          labels: ["NewEntity"],
+          properties: { name: "未保存节点" },
+          isTemp: true
+        });
+      }, 50);
     }
   }, [activeTool]);
 
@@ -393,49 +426,7 @@ function App() {
   }, []);
 
 
-  // 处理通过 Modal 创建节点/关系
-  const handleCreationConfirm = async (labelOrType: string) => {
-    if (!creationConfig) return;
-    const { type, sourceId, targetId } = creationConfig;
-    setCreationConfig(null);
-    setDrawingEdgeSource(null);
-    setActiveTool("pointer");
-    
-    setLoading(true);
-    let createQuery = "";
 
-    if (type === "node") {
-      const lbls = labelOrType.split(",").map(s => s.trim()).filter(Boolean);
-      if (lbls.length > 0) {
-        const labels = lbls.map(l => `:\`${l}\``).join("");
-        createQuery = `CREATE (n${labels} {name: 'New Node'}) RETURN n`;
-      } else {
-        createQuery = `CREATE (n {name: 'New Node'}) RETURN n`;
-      }
-    } else if (type === "edge" && sourceId && targetId) {
-      if (dbType === "neo4j") {
-        createQuery = `MATCH (a), (b) WHERE (elementId(a) = '${sourceId}' OR toString(id(a)) = '${sourceId}') AND (elementId(b) = '${targetId}' OR toString(id(b)) = '${targetId}') CREATE (a)-[r:\`${labelOrType}\`]->(b) RETURN a, r, b`;
-      } else {
-        createQuery = `MATCH (a), (b) WHERE toString(offset(id(a))) = '${sourceId.split(':').pop()}' AND toString(offset(id(b))) = '${targetId.split(':').pop()}' CREATE (a)-[r:\`${labelOrType}\`]->(b) RETURN a, r, b`;
-      }
-    }
-
-    try {
-      const result: any = await invoke("execute_cypher", { request: { query: createQuery } });
-      setGraphData(prev => mergeGraphData(prev, result, true));
-      
-      // 成功后可自动打开左下角属性面板来编辑更多属性
-      if (type === "node" && result.nodes?.length > 0) {
-        handleNodeClick(result.nodes[0].id);
-      } else if (type === "edge" && result.edges?.length > 0) {
-        handleEdgeClick(result.edges[0].id || `${result.edges[0].source}-${result.edges[0].target}`);
-      }
-    } catch (err: any) {
-      setError(err.toString());
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // 处理菜单项点击
   const handleMenuItemClick = async (action: string) => {
@@ -664,6 +655,64 @@ function App() {
     }
   };
 
+  const handleSaveTempEntity = async (labelOrType: string, customProps: any) => {
+    if (!detail || !detail.isTemp) return;
+    setSavingProp(true);
+    let createQuery = "";
+
+    const propsStr = Object.keys(customProps).length > 0 
+      ? `{${Object.entries(customProps).map(([k, v]) => `\`${k}\`: ${JSON.stringify(v)}`).join(', ')}}`
+      : `{name: 'New Node'}`;
+
+    if (detail.type === "node") {
+      const lbls = labelOrType.split(",").map(s => s.trim()).filter(Boolean);
+      if (lbls.length > 0) {
+        const labels = lbls.map(l => `:\`${l}\``).join("");
+        createQuery = `CREATE (n${labels} ${propsStr}) RETURN n`;
+      } else {
+        createQuery = `CREATE (n ${propsStr}) RETURN n`;
+      }
+    } else if (detail.type === "edge" && detail.source && detail.target) {
+      const sourceId = detail.source;
+      const targetId = detail.target;
+      if (dbType === "neo4j") {
+        createQuery = `MATCH (a), (b) WHERE (elementId(a) = '${sourceId}' OR toString(id(a)) = '${sourceId}') AND (elementId(b) = '${targetId}' OR toString(id(b)) = '${targetId}') CREATE (a)-[r:\`${labelOrType}\` ${propsStr}]->(b) RETURN a, r, b`;
+      } else {
+        createQuery = `MATCH (a), (b) WHERE toString(offset(id(a))) = '${sourceId.split(':').pop()}' AND toString(offset(id(b))) = '${targetId.split(':').pop()}' CREATE (a)-[r:\`${labelOrType}\` ${propsStr}]->(b) RETURN a, r, b`;
+      }
+    }
+
+    try {
+      const result: any = await invoke("execute_cypher", { request: { query: createQuery } });
+      setTempData(prev => ({
+        nodes: prev.nodes.filter(n => String(n.id) !== String(detail.id)),
+        edges: prev.edges.filter(e => String(e.id) !== String(detail.id))
+      }));
+      setGraphData(prev => mergeGraphData(prev, result, true));
+      
+      if (detail.type === "node" && result.nodes?.length > 0) {
+        handleNodeClick(result.nodes[0].id);
+      } else if (detail.type === "edge" && result.edges?.length > 0) {
+        handleEdgeClick(result.edges[0].id || `${result.edges[0].source}-${result.edges[0].target}`);
+      } else {
+        setDetail(null);
+      }
+    } catch (err: any) {
+      setError(err.toString());
+    } finally {
+      setSavingProp(false);
+    }
+  };
+
+  const handleCancelTempEntity = () => {
+    if (!detail || !detail.isTemp) return;
+    setTempData(prev => ({
+      nodes: prev.nodes.filter(n => String(n.id) !== String(detail.id)),
+      edges: prev.edges.filter(e => String(e.id) !== String(detail.id))
+    }));
+    setDetail(null);
+  };
+
   // ===== 概览数据计算 =====
   const labelCounts: Record<string, number> = {};
   graphData.nodes.forEach(n => {
@@ -779,7 +828,10 @@ function App() {
                 {activeTab === "graph" && (
                     <>
                       <GraphCanvas
-                        data={graphData}
+                        data={{
+                          nodes: [...graphData.nodes, ...tempData.nodes],
+                          edges: [...graphData.edges, ...tempData.edges]
+                        }}
                         onNodeClick={handleNodeClick}
                         onEdgeClick={handleEdgeClick}
                         onCanvasClick={handleCanvasClick}
@@ -787,17 +839,6 @@ function App() {
                         onEdgeRightClick={handleEdgeRightClick}
                       />
                       <GraphToolbar activeTool={activeTool} setActiveTool={setActiveTool} />
-                      {creationConfig && (
-                        <CreationModal
-                          config={creationConfig}
-                          onConfirm={handleCreationConfirm}
-                          onCancel={() => {
-                            setCreationConfig(null);
-                            setDrawingEdgeSource(null);
-                            setActiveTool("pointer");
-                          }}
-                        />
-                      )}
                       {contextMenu && (
                         <ContextMenu
                           contextMenu={contextMenu}
@@ -946,6 +987,10 @@ function App() {
                 setNewPropValue={setNewPropValue}
                 handleSaveProp={handleSaveProp}
                 handleDeleteProp={handleDeleteProp}
+                schemaLabels={schemaLabels}
+                schemaRelTypes={schemaRelTypes}
+                handleSaveTempEntity={handleSaveTempEntity}
+                handleCancelTempEntity={handleCancelTempEntity}
               />
             )}
           </div>
