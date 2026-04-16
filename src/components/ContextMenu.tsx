@@ -2,7 +2,7 @@ import React from "react";
 import { Maximize, ArrowUpRight, EyeOff, PinOff, Link, Undo2, Trash2, PlusCircle } from "lucide-react";
 
 export interface ContextMenuState {
-  type: "node" | "edge" | "canvas";
+  type: "node" | "edge";
   id: string;
   x: number;
   y: number;
@@ -42,9 +42,6 @@ export default function ContextMenu({
           <button className="context-menu-item" onClick={() => handleMenuItemClick("expand")}>
             <Maximize size={16} /> 展开选中节点
           </button>
-          <button className="context-menu-item" onClick={() => handleMenuItemClick("draw_edge")}>
-            <ArrowUpRight size={16} /> 牵拉连线到...
-          </button>
           <button className="context-menu-item" onClick={() => handleMenuItemClick("dismiss")}>
             <EyeOff size={16} /> 隐藏选中节点
           </button>
@@ -83,13 +80,7 @@ export default function ContextMenu({
             <Trash2 size={16} /> 删除关系
           </button>
         </>
-      ) : (
-        <>
-          <button className="context-menu-item" style={{ color: 'var(--accent)' }} onClick={() => handleMenuItemClick("create_node")}>
-            <PlusCircle size={16} /> 新建实体
-          </button>
-        </>
-      )}
+      ) : null}
     </div>
   );
 }

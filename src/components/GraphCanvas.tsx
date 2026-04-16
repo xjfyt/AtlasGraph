@@ -206,8 +206,7 @@ export default function GraphCanvas({
     }
   }, [data, handleFit]);
 
-  if (nvlNodes.length === 0) return null;
-
+// Removed early return allowing empty canvas to be rendered
   return (
     <div style={{ width: "100%", height: "100%", position: "absolute", inset: 0 }}>
       <InteractiveNvlWrapper

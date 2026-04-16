@@ -8,7 +8,7 @@ interface SidebarProps {
   setSidebarCollapsed: (v: boolean) => void;
   sidebarWidth: number;
   handleResizeStart: (e: React.MouseEvent) => void;
-  sidebarRef: React.RefObject<HTMLDivElement>;
+  sidebarRef: React.RefObject<HTMLDivElement | null>;
   children: React.ReactNode;
 }
 

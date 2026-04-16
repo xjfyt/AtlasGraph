@@ -14,7 +14,7 @@ export interface ConnectViewProps {
   connectMsg: { ok: boolean; text: string } | null;
   handleConnect: () => void;
   databases: { name: string; is_default: boolean; status: string }[];
-  selectedDb: string;
+  selectedDb: string; setSelectedDb: (v: string) => void;
   handleDbSwitch: (db: string) => void;
   schemaLabels: string[];
   schemaRelTypes: string[];
@@ -25,7 +25,7 @@ export interface ConnectViewProps {
 export default function ConnectView({
   dbType, setDbType, uri, setUri, user, setUser, password, setPassword,
   kuzuPath, setKuzuPath, connected, connecting, connectMsg, handleConnect,
-  databases, selectedDb, handleDbSwitch, schemaLabels, schemaRelTypes, schemaProperties, TAG_COLORS
+  databases, selectedDb, setSelectedDb, handleDbSwitch, schemaLabels, schemaRelTypes, schemaProperties, TAG_COLORS
 }: ConnectViewProps) {
   return (
     <>

@@ -11,6 +11,8 @@ import Sidebar from "./components/Sidebar";
 import Header from "./components/Header";
 import ContextMenu from "./components/ContextMenu";
 import DetailPanel from "./components/DetailPanel";
+import GraphToolbar, { ActiveTool } from "./components/GraphToolbar";
+import CreationModal, { CreationModalConfig } from "./components/CreationModal";
 import { IconLayout, IconGraph, IconTable, IconRaw, IconMaximize, IconSpinner, IconPlay, IconX } from "./components/icons";
 const GRAPH_COLORS = ["#F4B5BD", "#A5E1D3", "#FCE49E", "#CDB4DB", "#B9E1F9", "#FFDAC1"];
 
@@ -116,6 +118,8 @@ function App() {
   const [editingProp, setEditingProp] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const [savingProp, setSavingProp] = useState(false);
+  const [activeTool, setActiveTool] = useState<ActiveTool>("pointer");
+  const [creationConfig, setCreationConfig] = useState<CreationModalConfig | null>(null);
   const [drawingEdgeSource, setDrawingEdgeSource] = useState<string | null>(null);
   const [addingProp, setAddingProp] = useState(false);
   const [newPropKey, setNewPropKey] = useState("");
@@ -323,23 +327,16 @@ function App() {
   // ===== 节点/边点击回调 =====
   const handleNodeClick = useCallback((nodeId: string) => {
     setContextMenu(null);
-    if (drawingEdgeSource) {
-      setDrawingEdgeSource(null);
-      const edgeLabel = window.prompt("输入新的关系名称 (如: RELATED_TO):", "RELATED_TO");
-      if (edgeLabel && edgeLabel.trim()) {
-        const typeStr = edgeLabel.trim();
-        let createQuery = "";
-        if (dbType === "neo4j") {
-          createQuery = `MATCH (a), (b) WHERE (elementId(a) = '${drawingEdgeSource}' OR toString(id(a)) = '${drawingEdgeSource}') AND (elementId(b) = '${nodeId}' OR toString(id(b)) = '${nodeId}') CREATE (a)-[r:\`${typeStr}\`]->(b) RETURN a, r, b`;
+
+    if (activeTool === "create_edge") {
+      if (!drawingEdgeSource) {
+        setDrawingEdgeSource(nodeId);
+      } else {
+        if (drawingEdgeSource !== nodeId) {
+          setCreationConfig({ type: "edge", sourceId: drawingEdgeSource, targetId: nodeId });
         } else {
-          createQuery = `MATCH (a), (b) WHERE toString(offset(id(a))) = '${drawingEdgeSource.split(':').pop()}' AND toString(offset(id(b))) = '${nodeId.split(':').pop()}' CREATE (a)-[r:\`${typeStr}\`]->(b) RETURN a, r, b`;
+          setDrawingEdgeSource(null);
         }
-        
-        setLoading(true);
-        invoke("execute_cypher", { request: { query: createQuery } })
-          .then((result: any) => setGraphData(prev => mergeGraphData(prev, result, true)))
-          .catch((err: any) => setError(err.toString()))
-          .finally(() => setLoading(false));
       }
       return;
     }
@@ -355,10 +352,13 @@ function App() {
         properties: props,
       });
     }
-  }, [graphData, drawingEdgeSource, dbType, mergeGraphData]);
+  }, [graphData, drawingEdgeSource, activeTool]);
 
   const handleEdgeClick = useCallback((edgeId: string) => {
     setContextMenu(null);
+    if (activeTool !== "pointer") {
+      setActiveTool("pointer");
+    }
     const edge = graphData.edges.find((e) => {
       const eid = e.id || `${e.source}-${e.target}`;
       return String(eid) === String(edgeId);
@@ -373,12 +373,15 @@ function App() {
         properties: edge.properties || {},
       });
     }
-  }, [graphData]);
+  }, [graphData, activeTool]);
 
   const handleCanvasClick = useCallback(() => {
     setDetail(null);
     setContextMenu(null);
-  }, []);
+    if (activeTool === "create_node") {
+      setCreationConfig({ type: "node" });
+    }
+  }, [activeTool]);
 
   // 右键菜单事件
   const handleNodeRightClick = useCallback((nodeId: string, x: number, y: number) => {
@@ -389,9 +392,50 @@ function App() {
     setContextMenu({ type: "edge", id: edgeId, x, y });
   }, []);
 
-  const handleCanvasRightClick = useCallback((x: number, y: number) => {
-    setContextMenu({ type: "canvas", id: "canvas", x, y });
-  }, []);
+
+  // 处理通过 Modal 创建节点/关系
+  const handleCreationConfirm = async (labelOrType: string) => {
+    if (!creationConfig) return;
+    const { type, sourceId, targetId } = creationConfig;
+    setCreationConfig(null);
+    setDrawingEdgeSource(null);
+    setActiveTool("pointer");
+    
+    setLoading(true);
+    let createQuery = "";
+
+    if (type === "node") {
+      const lbls = labelOrType.split(",").map(s => s.trim()).filter(Boolean);
+      if (lbls.length > 0) {
+        const labels = lbls.map(l => `:\`${l}\``).join("");
+        createQuery = `CREATE (n${labels} {name: 'New Node'}) RETURN n`;
+      } else {
+        createQuery = `CREATE (n {name: 'New Node'}) RETURN n`;
+      }
+    } else if (type === "edge" && sourceId && targetId) {
+      if (dbType === "neo4j") {
+        createQuery = `MATCH (a), (b) WHERE (elementId(a) = '${sourceId}' OR toString(id(a)) = '${sourceId}') AND (elementId(b) = '${targetId}' OR toString(id(b)) = '${targetId}') CREATE (a)-[r:\`${labelOrType}\`]->(b) RETURN a, r, b`;
+      } else {
+        createQuery = `MATCH (a), (b) WHERE toString(offset(id(a))) = '${sourceId.split(':').pop()}' AND toString(offset(id(b))) = '${targetId.split(':').pop()}' CREATE (a)-[r:\`${labelOrType}\`]->(b) RETURN a, r, b`;
+      }
+    }
+
+    try {
+      const result: any = await invoke("execute_cypher", { request: { query: createQuery } });
+      setGraphData(prev => mergeGraphData(prev, result, true));
+      
+      // 成功后可自动打开左下角属性面板来编辑更多属性
+      if (type === "node" && result.nodes?.length > 0) {
+        handleNodeClick(result.nodes[0].id);
+      } else if (type === "edge" && result.edges?.length > 0) {
+        handleEdgeClick(result.edges[0].id || `${result.edges[0].source}-${result.edges[0].target}`);
+      }
+    } catch (err: any) {
+      setError(err.toString());
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // 处理菜单项点击
   const handleMenuItemClick = async (action: string) => {
@@ -443,25 +487,6 @@ function App() {
           setLoading(false);
         }
       }
-    } else if (action === "create_node") {
-      const labelStr = window.prompt("请输入实体分类(Label)，多个逗号分隔，缺省可留空:", "NewConcept");
-      if (labelStr !== null) {
-        const lbls = labelStr.split(",").map(s => s.trim()).filter(Boolean);
-        let createQuery = "";
-        if (lbls.length > 0) {
-          const labels = lbls.map(l => `:\`${l}\``).join("");
-          createQuery = `CREATE (n${labels} {name: 'New Node'}) RETURN n`;
-        } else {
-          createQuery = `CREATE (n {name: 'New Node'}) RETURN n`;
-        }
-        setLoading(true);
-        invoke("execute_cypher", { request: { query: createQuery } })
-           .then((result: any) => setGraphData(prev => mergeGraphData(prev, result, true)))
-           .catch((err: any) => setError(err.toString()))
-           .finally(() => setLoading(false));
-      }
-    } else if (action === "draw_edge") {
-      setDrawingEdgeSource(id);
     } else if (action === "undo_connect") {
       if (type === "node") {
         setGraphData(prev => ({
@@ -680,7 +705,7 @@ function App() {
             dbType={dbType} setDbType={setDbType} uri={uri} setUri={setUri} user={user} setUser={setUser}
             password={password} setPassword={setPassword} kuzuPath={kuzuPath} setKuzuPath={setKuzuPath}
             connected={connected} connecting={connecting} connectMsg={connectMsg} handleConnect={handleConnect}
-            databases={databases} selectedDb={selectedDb} handleDbSwitch={handleDbSwitch}
+            databases={databases} selectedDb={selectedDb} setSelectedDb={setSelectedDb} handleDbSwitch={handleDbSwitch}
             schemaLabels={schemaLabels} schemaRelTypes={schemaRelTypes} schemaProperties={schemaProperties} TAG_COLORS={TAG_COLORS}
           />
         )}
@@ -752,7 +777,6 @@ function App() {
 
               <div className="graph-container">
                 {activeTab === "graph" && (
-                  graphData.nodes.length > 0 ? (
                     <>
                       <GraphCanvas
                         data={graphData}
@@ -761,8 +785,19 @@ function App() {
                         onCanvasClick={handleCanvasClick}
                         onNodeRightClick={handleNodeRightClick}
                         onEdgeRightClick={handleEdgeRightClick}
-                        onCanvasRightClick={handleCanvasRightClick}
                       />
+                      <GraphToolbar activeTool={activeTool} setActiveTool={setActiveTool} />
+                      {creationConfig && (
+                        <CreationModal
+                          config={creationConfig}
+                          onConfirm={handleCreationConfirm}
+                          onCancel={() => {
+                            setCreationConfig(null);
+                            setDrawingEdgeSource(null);
+                            setActiveTool("pointer");
+                          }}
+                        />
+                      )}
                       {contextMenu && (
                         <ContextMenu
                           contextMenu={contextMenu}
@@ -775,7 +810,10 @@ function App() {
                       {drawingEdgeSource && (
                         <div style={{ position: 'absolute', top: 16, left: '50%', transform: 'translateX(-50%)', background: 'var(--brand-primary)', color: '#fff', padding: '8px 16px', borderRadius: 20, fontSize: 13, boxShadow: 'var(--shadow-md)', zIndex: 50, display: 'flex', alignItems: 'center', gap: 8 }}>
                           <span>请点击希望连接的目标节点...</span>
-                          <button onClick={() => setDrawingEdgeSource(null)} style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', opacity: 0.8, display: 'flex', alignItems: 'center' }}>
+                          <button onClick={() => {
+                            setDrawingEdgeSource(null);
+                            setActiveTool("pointer");
+                          }} style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', opacity: 0.8, display: 'flex', alignItems: 'center' }}>
                             <IconX />
                           </button>
                         </div>
@@ -837,13 +875,6 @@ function App() {
                         </div>
                       </div>
                     </>
-                  ) : (
-                    <div className="empty-state">
-                      <IconLayout />
-                      <p className="empty-title">尚无查询结果</p>
-                      <p className="empty-subtitle">在上方输入 Cypher 语句并按 Ctrl+Enter 执行查询</p>
-                    </div>
-                  )
                 )}
                 {activeTab === "table" && (
                   <div className="table-view">
