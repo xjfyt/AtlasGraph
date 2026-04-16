@@ -1,3 +1,4 @@
+use kuzu::{Connection, Database, SystemConfig, Value as KuzuValue, NodeVal, RelVal};
 use neo4rs::{ConfigBuilder, Graph, query};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -67,6 +68,7 @@ pub struct ItemCount {
 
 pub struct AppState {
     pub neo4j_graph: Arc<Mutex<Option<Graph>>>,
+    pub kuzu_db: Arc<Mutex<Option<Database>>>,
     pub connection_info: Arc<Mutex<ConnectionInfo>>,
 }
 
@@ -84,6 +86,7 @@ impl AppState {
     pub fn new() -> Self {
         Self {
             neo4j_graph: Arc::new(Mutex::new(None)),
+            kuzu_db: Arc::new(Mutex::new(None)),
             connection_info: Arc::new(Mutex::new(ConnectionInfo::default())),
         }
     }
@@ -160,10 +163,17 @@ async fn connect_kuzu(state: &AppState, req: &ConnectRequest) -> Result<String, 
         return Err("Kuzu 数据库路径不能为空".into());
     }
 
-    // Kuzu 目前使用 Mock（真实实现需要 kuzu crate）
+    // 建立真实的 Kuzu 连接
+    let db = Database::new(path, SystemConfig::default())
+        .map_err(|e| format!("Kuzu Database 初始化失败: {}", e))?;
+
     {
         let mut g = state.neo4j_graph.lock().await;
         *g = None; // 清除 neo4j 连接
+    }
+    {
+        let mut kd = state.kuzu_db.lock().await;
+        *kd = Some(db);
     }
     {
         let mut info = state.connection_info.lock().await;
@@ -171,6 +181,15 @@ async fn connect_kuzu(state: &AppState, req: &ConnectRequest) -> Result<String, 
         info.connected = true;
         info.kuzu_path = path.to_string();
         info.database = "default".to_string();
+    }
+
+    // 简单的连接验证
+    {
+        let db_lock = state.kuzu_db.lock().await;
+        if let Some(db_ref) = db_lock.as_ref() {
+            let conn = Connection::new(db_ref).map_err(|e| format!("无法创建验证连接: {}", e))?;
+            conn.query("MATCH (n) RETURN n LIMIT 1").map_err(|e| format!("连接验证失败: {}", e))?;
+        }
     }
 
     Ok(format!("已成功连接到 Kuzu: {}", path))
@@ -267,7 +286,7 @@ pub async fn execute(state: &AppState, cypher: &str) -> Result<GraphData, String
     if info.is_neo4j {
         execute_neo4j(state, cypher).await
     } else {
-        execute_kuzu_mock(cypher).await
+        execute_kuzu(state, cypher).await
     }
 }
 
@@ -495,40 +514,94 @@ fn extract_return_aliases(cypher: &str) -> Vec<String> {
     aliases
 }
 
-/// Kuzu Mock 数据
-async fn execute_kuzu_mock(_cypher: &str) -> Result<GraphData, String> {
-    Ok(get_kuzu_mock_data())
+/// 转换 Kuzu Value 为 Json
+fn kuzu_val_to_json(val: &KuzuValue) -> Value {
+    match val {
+        KuzuValue::Bool(b) => json!(b),
+        KuzuValue::Int64(i) => json!(i),
+        KuzuValue::Int32(i) => json!(i),
+        KuzuValue::Int16(i) => json!(i),
+        KuzuValue::Int8(i) => json!(i),
+        KuzuValue::UInt64(i) => json!(i),
+        KuzuValue::UInt32(i) => json!(i),
+        KuzuValue::UInt16(i) => json!(i),
+        KuzuValue::UInt8(i) => json!(i),
+        KuzuValue::Double(d) => json!(d),
+        KuzuValue::Float(f) => json!(f),
+        KuzuValue::String(s) => Value::String(s.clone()),
+        KuzuValue::Date(d) => Value::String(d.to_string()),
+        KuzuValue::Timestamp(t) => Value::String(t.to_string()),
+        KuzuValue::Interval(i) => Value::String(i.to_string()),
+        KuzuValue::List(_, l) => Value::Array(l.iter().map(kuzu_val_to_json).collect()),
+        _ => Value::String(format!("{:?}", val)),
+    }
 }
 
-fn get_kuzu_mock_data() -> GraphData {
-    GraphData {
-        nodes: vec![
-            GraphNode { id: "1".into(), properties: json!({ "name": "安翔瑞思科技有限公司", "level": 0, "age": 10, "type": "Company" }) },
-            GraphNode { id: "2".into(), properties: json!({ "name": "研发A1部", "level": 1, "type": "Department" }) },
-            GraphNode { id: "3".into(), properties: json!({ "name": "研发A2部", "level": 1, "type": "Department" }) },
-            GraphNode { id: "4".into(), properties: json!({ "name": "市场部", "level": 1, "type": "Department" }) },
-            GraphNode { id: "5".into(), properties: json!({ "name": "财务部", "level": 1, "type": "Department" }) },
-            GraphNode { id: "6".into(), properties: json!({ "name": "张三", "level": 2, "age": 35, "type": "Person" }) },
-            GraphNode { id: "7".into(), properties: json!({ "name": "李四", "level": 2, "type": "Person" }) },
-            GraphNode { id: "8".into(), properties: json!({ "name": "王五", "level": 2, "age": 28, "type": "Person" }) },
-            GraphNode { id: "9".into(), properties: json!({ "name": "赵六", "level": 2, "type": "Person" }) },
-            GraphNode { id: "10".into(), properties: json!({ "name": "AI平台项目", "level": 2, "type": "Project" }) },
-            GraphNode { id: "11".into(), properties: json!({ "name": "知识图谱引擎", "level": 2, "type": "Project" }) },
-        ],
-        edges: vec![
-            GraphEdge { id: "e1".into(), source: "1".into(), target: "2".into(), label: "HAS_DEPARTMENT".into(), properties: json!({}) },
-            GraphEdge { id: "e2".into(), source: "1".into(), target: "3".into(), label: "HAS_DEPARTMENT".into(), properties: json!({}) },
-            GraphEdge { id: "e3".into(), source: "1".into(), target: "4".into(), label: "HAS_DEPARTMENT".into(), properties: json!({}) },
-            GraphEdge { id: "e4".into(), source: "1".into(), target: "5".into(), label: "HAS_DEPARTMENT".into(), properties: json!({}) },
-            GraphEdge { id: "e5".into(), source: "2".into(), target: "6".into(), label: "HAS_MEMBER".into(), properties: json!({}) },
-            GraphEdge { id: "e6".into(), source: "2".into(), target: "7".into(), label: "HAS_MEMBER".into(), properties: json!({}) },
-            GraphEdge { id: "e7".into(), source: "3".into(), target: "8".into(), label: "HAS_MEMBER".into(), properties: json!({}) },
-            GraphEdge { id: "e8".into(), source: "3".into(), target: "9".into(), label: "HAS_MEMBER".into(), properties: json!({}) },
-            GraphEdge { id: "e9".into(), source: "6".into(), target: "10".into(), label: "LEADS".into(), properties: json!({ "since": "2023" }) },
-            GraphEdge { id: "e10".into(), source: "8".into(), target: "11".into(), label: "LEADS".into(), properties: json!({ "since": "2024" }) },
-            GraphEdge { id: "e11".into(), source: "10".into(), target: "11".into(), label: "DEPENDS_ON".into(), properties: json!({}) },
-        ],
+/// 将 Kuzu 的 NodeVal 解析为 GraphNode
+fn extract_kuzu_node(node: &NodeVal) -> GraphNode {
+    let mut props = serde_json::Map::new();
+    for (k, v) in node.get_properties() {
+        props.insert(k.clone(), kuzu_val_to_json(v));
     }
+    props.insert("_labels".to_string(), json!([node.get_label_name()]));
+
+    GraphNode {
+        id: format!("{}:{}", node.get_node_id().table_id, node.get_node_id().offset),
+        properties: Value::Object(props),
+    }
+}
+
+/// 将 Kuzu 的 RelVal 解析为 GraphEdge
+fn extract_kuzu_rel(rel: &RelVal) -> GraphEdge {
+    let mut props = serde_json::Map::new();
+    for (k, v) in rel.get_properties() {
+        props.insert(k.clone(), kuzu_val_to_json(v));
+    }
+
+    GraphEdge {
+        id: format!("{}:{}-{}", rel.get_src_node().table_id, rel.get_src_node().offset, rel.get_dst_node().offset),
+        source: format!("{}:{}", rel.get_src_node().table_id, rel.get_src_node().offset),
+        target: format!("{}:{}", rel.get_dst_node().table_id, rel.get_dst_node().offset),
+        label: rel.get_label_name().to_string(),
+        properties: Value::Object(props),
+    }
+}
+
+/// 执行 Kuzu 真实查询
+async fn execute_kuzu(state: &AppState, cypher: &str) -> Result<GraphData, String> {
+    let db_lock = state.kuzu_db.lock().await;
+    let db = db_lock.as_ref().ok_or("Kuzu 连接不存在")?;
+    let conn = Connection::new(db).map_err(|e| format!("初始化连接失败: {}", e))?;
+
+    let mut result = conn.query(cypher)
+        .map_err(|e| format!("Kuzu 查询执行失败: {}", e))?;
+
+    let mut nodes: std::collections::HashMap<String, GraphNode> = std::collections::HashMap::new();
+    let mut edges: std::collections::HashMap<String, GraphEdge> = std::collections::HashMap::new();
+
+    while let Some(row) = result.next() {
+        for val in row.into_iter() {
+            match val {
+                KuzuValue::Node(node_val) => {
+                    let n = extract_kuzu_node(&node_val);
+                    nodes.insert(n.id.clone(), n);
+                }
+                KuzuValue::Rel(rel_val) => {
+                    let e = extract_kuzu_rel(&rel_val);
+                    edges.insert(e.id.clone(), e);
+                }
+                KuzuValue::RecursiveRel { .. } => {
+                    // Recursive rel parsing is skipped for basic layout temporarily
+                }
+                _ => {}
+            }
+        }
+    }
+
+    Ok(GraphData {
+        nodes: nodes.into_values().collect(),
+        edges: edges.into_values().collect(),
+    })
 }
 
 // ===== 获取 Schema 统计 =====
@@ -576,21 +649,92 @@ pub async fn get_schema_stats(state: &AppState) -> Result<SchemaStats, String> {
 
         Ok(stats)
     } else {
-        Ok(SchemaStats {
-            total_nodes: 11,
-            total_edges: 11,
-            labels: vec![
-                ItemCount { name: "Department".into(), count: 4 },
-                ItemCount { name: "Person".into(), count: 4 },
-                ItemCount { name: "Project".into(), count: 2 },
-                ItemCount { name: "Company".into(), count: 1 },
-            ],
-            rel_types: vec![
-                ItemCount { name: "HAS_DEPARTMENT".into(), count: 4 },
-                ItemCount { name: "HAS_MEMBER".into(), count: 4 },
-                ItemCount { name: "LEADS".into(), count: 2 },
-                ItemCount { name: "DEPENDS_ON".into(), count: 1 },
-            ],
-        })
+        let db_lock = state.kuzu_db.lock().await;
+        let db = db_lock.as_ref().ok_or("Kuzu 连接已断开")?;
+        let conn = Connection::new(db).map_err(|e| format!("连接失效: {}", e))?;
+
+        let mut stats = SchemaStats {
+            total_nodes: 0,
+            total_edges: 0,
+            labels: Vec::new(),
+            rel_types: Vec::new(),
+        };
+
+        // Kuzu 中获取 schema 的常见方式：
+        // Kuzu 支持 `CALL show_tables() RETURN *` 获取所有的节点和边表
+        if let Ok(mut res) = conn.query("CALL show_tables() RETURN *") {
+            let mut node_tables = Vec::new();
+            let mut rel_tables = Vec::new();
+
+            while let Some(row) = res.next() {
+                // 通常表返回包含 "name" 和 "type"
+                if row.len() >= 2 {
+                    let name = match &row[1] { // index 1 is typical for 'name' in some versions, but better safe
+                        KuzuValue::String(s) => s.clone(),
+                        _ => format!("{:?}", row[1])
+                    };
+                    let type_str = match &row[2] {
+                        KuzuValue::String(s) => s.clone(),
+                        _ => format!("{:?}", row[2])
+                    };
+                    
+                    if type_str == "NODE" {
+                        node_tables.push(name);
+                    } else if type_str == "REL" {
+                        rel_tables.push(name);
+                    } else {
+                        // Kuzu 0.11 CALL show_tables column 1 is name, 2 is type in newer versions
+                        // Let's iterate row and find type 
+                        let mut name_val = "".to_string();
+                        let mut type_val = "".to_string();
+                        for v in &row {
+                            if let KuzuValue::String(s) = v {
+                                if s == "NODE" || s == "REL" { type_val = s.clone(); continue;}
+                            }
+                        }
+                        if type_val == "NODE" {
+                            if let KuzuValue::String(s) = &row[1] { name_val = s.clone(); }
+                            if !name_val.is_empty() { node_tables.push(name_val); }
+                        } else if type_val == "REL" {
+                            if let KuzuValue::String(s) = &row[1] { name_val = s.clone(); }
+                            if !name_val.is_empty() { rel_tables.push(name_val); }
+                        }
+                    }
+                }
+            }
+
+            // 对每张节点表查询 Count
+            for table_name in node_tables {
+                if let Ok(mut c_res) = conn.query(&format!("MATCH (n:{}) RETURN count(n)", table_name)) {
+                    if let Some(c_row) = c_res.next() {
+                        if !c_row.is_empty() {
+                            if let KuzuValue::Int64(c) = c_row[0] {
+                                stats.total_nodes += c;
+                                stats.labels.push(ItemCount { name: table_name, count: c });
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 对每张边表查询 Count
+            for table_name in rel_tables {
+                if let Ok(mut c_res) = conn.query(&format!("MATCH ()-[r:{}]->() RETURN count(r)", table_name)) {
+                    if let Some(c_row) = c_res.next() {
+                        if !c_row.is_empty() {
+                            if let KuzuValue::Int64(c) = c_row[0] {
+                                stats.total_edges += c;
+                                stats.rel_types.push(ItemCount { name: table_name, count: c });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        stats.labels.sort_by(|a, b| b.count.cmp(&a.count).then(a.name.cmp(&b.name)));
+        stats.rel_types.sort_by(|a, b| b.count.cmp(&a.count).then(a.name.cmp(&b.name)));
+
+        Ok(stats)
     }
 }
