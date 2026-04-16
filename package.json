@@ -13,6 +13,8 @@
     "@neo4j-nvl/interaction-handlers": "^1.1.0",
     "@neo4j-nvl/react": "^1.1.0",
     "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-dialog": "^2.7.0",
+    "@tauri-apps/plugin-fs": "^2.5.0",
     "@tauri-apps/plugin-opener": "^2",
     "clsx": "^2.1.1",
     "lucide-react": "^1.8.0",
