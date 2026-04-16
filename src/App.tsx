@@ -4,113 +4,14 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { EyeOff, PinOff, Link, Undo2, Maximize, Trash2, PlusCircle, ArrowUpRight } from "lucide-react";
 import "./App.css";
 import GraphCanvas from "./components/GraphCanvas";
-
-/* ===== SVG 图标 ===== */
-const IconDatabase = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M3 5V19A9 3 0 0 0 21 19V5" /><path d="M3 12A9 3 0 0 0 21 12" />
-  </svg>
-);
-const IconPlay = () => (
-  <svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="6,3 20,12 6,21" /></svg>
-);
-const IconGraph = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="6" cy="6" r="3" /><circle cx="18" cy="6" r="3" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="18" r="3" />
-    <line x1="8.5" y1="7.5" x2="15.5" y2="16.5" /><line x1="15.5" y1="7.5" x2="8.5" y2="16.5" />
-  </svg>
-);
-const IconTable = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="3" y="3" width="18" height="18" rx="2" /><line x1="3" y1="9" x2="21" y2="9" /><line x1="3" y1="15" x2="21" y2="15" /><line x1="9" y1="3" x2="9" y2="21" /><line x1="15" y1="3" x2="15" y2="21" />
-  </svg>
-);
-const IconRaw = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" />
-  </svg>
-);
-const IconHistory = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
-  </svg>
-);
-// @ts-ignore
-const IconLayout = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="8" r="4" /><circle cx="5" cy="18" r="3" /><circle cx="19" cy="18" r="3" />
-    <line x1="10" y1="11.5" x2="6.5" y2="15.5" /><line x1="14" y1="11.5" x2="17.5" y2="15.5" />
-  </svg>
-);
-// @ts-ignore
-const IconDownload = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
-  </svg>
-);
-const IconMaximize = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="15 3 21 3 21 9" /><polyline points="9 21 3 21 3 15" /><line x1="21" y1="3" x2="14" y2="10" /><line x1="3" y1="21" x2="10" y2="14" />
-  </svg>
-);
-const IconSpinner = () => (
-  <svg className="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
-    <path d="M12 2a10 10 0 0 1 10 10" opacity="0.4" /><path d="M12 2a10 10 0 0 0-10 10" />
-  </svg>
-);
-const IconChevronLeft = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="15 18 9 12 15 6" />
-  </svg>
-);
-const IconChevronRight = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="9 18 15 12 9 6" />
-  </svg>
-);
-const IconPlug = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" />
-    <path d="M12 6v6l4 2" />
-  </svg>
-);
-const IconX = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-  </svg>
-);
-const IconPanelLeft = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="3" y="3" width="18" height="18" rx="2" /><line x1="9" y1="3" x2="9" y2="21" />
-  </svg>
-);
-const IconSun = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="12" r="5" /><line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" /><line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" /><line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" /><line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
-  </svg>
-);
-const IconMoon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-  </svg>
-);
-const IconMonitor = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="2" y="3" width="20" height="14" rx="2" ry="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" />
-  </svg>
-);
-const IconPalette = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="13.5" cy="6.5" r="1.5" /><circle cx="17.5" cy="10.5" r="1.5" /><circle cx="8.5" cy="7.5" r="1.5" /><circle cx="6.5" cy="12" r="1.5" />
-    <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.9 0 1.7-.7 1.7-1.5 0-.4-.2-.7-.4-1-.2-.3-.3-.6-.3-1 0-.8.7-1.5 1.5-1.5H16c3.3 0 6-2.7 6-6 0-5.5-4.5-10-10-10z" />
-  </svg>
-);
-const IconFolderOpen = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-  </svg>
-);
-
+import ConnectView from "./components/ConnectView";
+import HistoryView from "./components/HistoryView";
+import ThemeView from "./components/ThemeView";
+import Sidebar from "./components/Sidebar";
+import Header from "./components/Header";
+import ContextMenu from "./components/ContextMenu";
+import DetailPanel from "./components/DetailPanel";
+import { IconLayout, IconGraph, IconTable, IconRaw, IconMaximize, IconSpinner, IconPlay, IconX } from "./components/icons";
 const GRAPH_COLORS = ["#F4B5BD", "#A5E1D3", "#FCE49E", "#CDB4DB", "#B9E1F9", "#FFDAC1"];
 
 /* ===== 详情类型定义 ===== */
@@ -768,303 +669,36 @@ function App() {
 
   return (
     <div className="app-layout">
-      {/* ===== 左侧导航栏 ===== */}
-      <nav className="nav-rail">
-        <div className="nav-logo">咪鼠</div>
-        <button className={`nav-btn ${activeNav === "database" ? "active" : ""}`} onClick={() => { setActiveNav("database"); setSidebarCollapsed(false); }} title="查询与连接"><IconDatabase /></button>
-        <button className={`nav-btn ${activeNav === "history" ? "active" : ""}`} onClick={() => { setActiveNav("history"); setSidebarCollapsed(false); }} title="历史记录"><IconHistory /></button>
-        {sidebarCollapsed && (
-          <button
-            className="sidebar-expand-btn"
-            title="展开侧边栏"
-            onClick={() => setSidebarCollapsed(false)}
-          >
-            <IconChevronRight />
-          </button>
-        )}
-        <div className="nav-spacer" />
-        <button className={`nav-btn ${activeNav === "theme" ? "active" : ""}`} onClick={() => { setActiveNav("theme"); setSidebarCollapsed(false); }} title="色彩调节"><IconPalette /></button>
-      </nav>
-
       {/* ===== 数据库配置侧边栏 ===== */}
-      <div
-        ref={sidebarRef}
-        className={`sidebar-wrapper ${sidebarCollapsed ? "collapsed" : ""}`}
-        style={{ width: sidebarCollapsed ? 0 : sidebarWidth }}
+      <Sidebar
+        activeNav={activeNav} setActiveNav={setActiveNav}
+        sidebarCollapsed={sidebarCollapsed} setSidebarCollapsed={setSidebarCollapsed}
+        sidebarWidth={sidebarWidth} handleResizeStart={handleResizeStart} sidebarRef={sidebarRef}
       >
-        <aside className="sidebar">
-          <div className="sidebar-header">
-            <h2>咪鼠图谱可视化</h2>
-            <button
-              className="sidebar-collapse-btn"
-              onClick={() => setSidebarCollapsed(true)}
-              title="收起侧边栏"
-            >
-              <IconChevronLeft />
-            </button>
-          </div>
-
-          <div className="sidebar-body">
-            {activeNav === "database" && (
-              <>
-                <div className="form-section">
-                  <div className="form-section-title">连接引擎</div>
-                  <div className="engine-toggle">
-                    <button className={dbType === "kuzu" ? "active" : ""} onClick={() => setDbType("kuzu")}>
-                      Kuzu (本地)
-                    </button>
-                    <button className={dbType === "neo4j" ? "active" : ""} onClick={() => setDbType("neo4j")}>
-                      Neo4j (远程)
-                    </button>
-                  </div>
-                </div>
-
-                <div className="form-section">
-                  <div className="form-section-title">连接参数</div>
-                  {dbType === "neo4j" ? (
-                    <>
-                      <div className="form-group">
-                        <label className="form-label">连接 URI</label>
-                        <input className="form-input" type="text" value={uri} onChange={(e) => setUri(e.target.value)} placeholder="bolt://localhost:7687" />
-                      </div>
-                      <div className="form-group">
-                        <label className="form-label">用户名</label>
-                        <input className="form-input" type="text" value={user} onChange={(e) => setUser(e.target.value)} />
-                      </div>
-                      <div className="form-group">
-                        <label className="form-label">密码</label>
-                        <input className="form-input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
-                      </div>
-                      <div className="form-group">
-                        <label className="form-label">数据库名</label>
-                        <input className="form-input" type="text" value={selectedDb} onChange={(e) => setSelectedDb(e.target.value)} placeholder="neo4j" />
-                        <div className="form-hint">默认为 neo4j，可指定其他数据库</div>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="form-group">
-                      <label className="form-label">Kuzu 数据库路径</label>
-                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                        <input
-                          className="form-input"
-                          type="text"
-                          value={kuzuPath}
-                          onChange={(e) => {
-                            let val = e.target.value.trim();
-                            val = val.replace(/^["']+|["']+$/g, '');
-                            setKuzuPath(val);
-                          }}
-                          placeholder="./data/db"
-                          style={{ flex: 1, minWidth: 0, padding: "8px 12px" }}
-                        />
-                        <button
-                          className="icon-btn"
-                          title="选择本地 Kuzu 数据库目录"
-                          style={{ width: '35px', height: '35px', flexShrink: 0, border: '1px solid var(--border)', background: 'var(--bg-primary)' }}
-                          onClick={async () => {
-                            try {
-                              const selected = await open({
-                                directory: false,
-                                multiple: false,
-                                filters: [{ name: 'Kuzu Database', extensions: ['kuzu', 'kz', 'db'] }, { name: 'All Files', extensions: ['*'] }]
-                              });
-                              if (selected && !Array.isArray(selected)) {
-                                setKuzuPath(selected);
-                              }
-                            } catch (err) {
-                              console.error(err);
-                            }
-                          }}
-                        >
-                          <IconFolderOpen />
-                        </button>
-                      </div>
-                      <div className="form-hint">指定本地 Kuzu 数据库文件的路径</div>
-                    </div>
-                  )}
-
-                  <button
-                    className={`connect-btn ${connecting ? "" : "primary"}`}
-                    onClick={handleConnect}
-                    style={connecting ? { background: 'var(--bg-secondary)', color: 'var(--text-muted)', border: '1px solid var(--border)' } : {}}
-                  >
-                    {connecting ? <IconSpinner /> : <IconPlug />}
-                    {connecting ? "连接中... (点击取消)" : "连接"}
-                  </button>
-
-                  {connectMsg && (
-                    <div className={`connect-status ${connectMsg.ok ? "success" : "error"}`}>
-                      {connectMsg.ok ? "✓" : "✗"} {connectMsg.text}
-                    </div>
-                  )}
-                </div>
-
-                {connected && databases.length > 0 && (
-                  <div className="form-section">
-                    <div className="form-section-title">选择数据库</div>
-                    <select
-                      className="form-input"
-                      value={selectedDb}
-                      onChange={(e) => handleDbSwitch(e.target.value)}
-                      style={{ fontFamily: "inherit" }}
-                    >
-                      {databases.map((db) => (
-                        <option key={db.name} value={db.name}>
-                          {db.name} {db.is_default ? "(默认)" : ""} - {db.status}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-
-                <div className="form-section schema-section">
-                  <div className="form-section-title">数据模式概览</div>
-                  <div style={{ marginBottom: 10 }}>
-                    <div className="form-label" style={{ marginBottom: 4 }}>节点标签</div>
-                    <div className="tag-list">
-                      {schemaLabels.length > 0 ? (
-                        schemaLabels.map((label, i) => (
-                          <span key={label} className={`tag ${TAG_COLORS[i % TAG_COLORS.length]}`}>{label}</span>
-                        ))
-                      ) : (
-                        <span className="form-hint">连接数据库后显示</span>
-                      )}
-                    </div>
-                  </div>
-                  <div style={{ marginBottom: 10 }}>
-                    <div className="form-label" style={{ marginBottom: 4 }}>关系类型</div>
-                    <div className="tag-list">
-                      {schemaRelTypes.length > 0 ? (
-                        schemaRelTypes.map((rt) => (
-                          <span key={rt} className="tag-mono">{rt}</span>
-                        ))
-                      ) : (
-                        <span className="form-hint">连接数据库后显示</span>
-                      )}
-                    </div>
-                  </div>
-                  {schemaProperties.length > 0 && (
-                    <div>
-                      <div className="form-label" style={{ marginBottom: 4 }}>属性键</div>
-                      <div className="tag-list">
-                        {schemaProperties.map((pk) => (
-                          <span key={pk} className="tag-mono">{pk}</span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
-
-            {activeNav === "history" && (
-              <div className="history-panel">
-                <div className="form-section-title" style={{ marginBottom: 12 }}>最近执行的查询</div>
-                {history.length === 0 ? (
-                  <div className="empty-state" style={{ position: 'relative', minHeight: 200 }}>
-                    <IconHistory />
-                    <p className="empty-title">暂无历史记录</p>
-                    <p className="empty-subtitle">执行查询后会自动保存</p>
-                  </div>
-                ) : (
-                  <div className="history-list">
-                    {history.map((h, i) => (
-                      <div
-                        key={i}
-                        className="history-item"
-                        onClick={() => {
-                          setQuery(h.query);
-                          setActiveNav("database");
-                        }}
-                      >
-                        <div className="history-query">{h.query}</div>
-                        <div className="history-meta">
-                          <span>{new Date(h.timestamp).toLocaleString()}</span>
-                          <span>{h.nodeCount} 节点, {h.edgeCount} 关系</span>
-                        </div>
-                      </div>
-                    ))}
-                    <button
-                      className="history-clear-btn"
-                      onClick={() => setHistory([])}
-                    >
-                      清除历史记录
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {activeNav === "theme" && (
-              <div className="theme-panel">
-                <div className="form-section-title" style={{ marginBottom: 16 }}>色彩模式</div>
-                <div className="theme-options">
-                  <button
-                    className={`theme-option ${themeMode === "light" ? "active" : ""}`}
-                    onClick={() => setThemeMode("light")}
-                  >
-                    <div className="theme-option-icon"><IconSun /></div>
-                    <div className="theme-option-label">浅色</div>
-                    <div className="theme-option-desc">默认浅色主题</div>
-                  </button>
-                  <button
-                    className={`theme-option ${themeMode === "dark" ? "active" : ""}`}
-                    onClick={() => setThemeMode("dark")}
-                  >
-                    <div className="theme-option-icon"><IconMoon /></div>
-                    <div className="theme-option-label">深色</div>
-                    <div className="theme-option-desc">深色主题，降低屏幕亮度</div>
-                  </button>
-                  <button
-                    className={`theme-option ${themeMode === "system" ? "active" : ""}`}
-                    onClick={() => setThemeMode("system")}
-                  >
-                    <div className="theme-option-icon"><IconMonitor /></div>
-                    <div className="theme-option-label">跟随系统</div>
-                    <div className="theme-option-desc">自动跟随操作系统设置</div>
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </aside>
-
-        <div className="sidebar-resize-handle" onMouseDown={handleResizeStart} />
-      </div>
+        {activeNav === "database" && (
+          <ConnectView
+            dbType={dbType} setDbType={setDbType} uri={uri} setUri={setUri} user={user} setUser={setUser}
+            password={password} setPassword={setPassword} kuzuPath={kuzuPath} setKuzuPath={setKuzuPath}
+            connected={connected} connecting={connecting} connectMsg={connectMsg} handleConnect={handleConnect}
+            databases={databases} selectedDb={selectedDb} handleDbSwitch={handleDbSwitch}
+            schemaLabels={schemaLabels} schemaRelTypes={schemaRelTypes} schemaProperties={schemaProperties} TAG_COLORS={TAG_COLORS}
+          />
+        )}
+        {activeNav === "history" && (
+          <HistoryView history={history} setHistory={setHistory} setQuery={setQuery} setActiveNav={setActiveNav} />
+        )}
+        {activeNav === "theme" && (
+          <ThemeView themeMode={themeMode} setThemeMode={setThemeMode} />
+        )}
+      </Sidebar>
 
       {/* ===== 主工作区 ===== */}
       <main className="main-area">
-        <div className="topbar">
-          <div className="topbar-left">
-            {sidebarCollapsed && (
-              <button className="icon-btn" onClick={() => setSidebarCollapsed(false)} title="展开侧边栏">
-                <IconPanelLeft />
-              </button>
-            )}
-            <div className="topbar-status">
-              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Instance:</span>
-              <div className={`status-dot ${connected ? "connected" : "disconnected"}`} />
-              <span style={{ fontFamily: "'SF Mono','Consolas',monospace", fontSize: 12 }}>
-                {dbType === "neo4j" ? uri : kuzuPath}
-              </span>
-            </div>
-            {connected && databases.length > 0 && (
-              <div className="topbar-db-info">
-                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Database:</span>
-                <span style={{ fontSize: 12, fontWeight: 500 }}>{selectedDb}</span>
-              </div>
-            )}
-            {connected && (
-              <div className="topbar-db-info">
-                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>User:</span>
-                <span style={{ fontSize: 12, fontWeight: 500 }}>{user}</span>
-              </div>
-            )}
-          </div>
-          <div className="topbar-user">
-            引擎: <span>{dbType.toUpperCase()}</span>
-          </div>
-        </div>
+        <Header 
+          sidebarCollapsed={sidebarCollapsed} setSidebarCollapsed={setSidebarCollapsed}
+          connected={connected} dbType={dbType} uri={uri} kuzuPath={kuzuPath}
+          databases={databases} selectedDb={selectedDb} user={user}
+        />
 
         <div className="workspace">
           <div className="query-editor">
@@ -1130,76 +764,13 @@ function App() {
                         onCanvasRightClick={handleCanvasRightClick}
                       />
                       {contextMenu && (
-                        <div
-                          className="context-menu"
-                          style={{
-                            position: 'fixed',
-                            left: contextMenu.x,
-                            top: contextMenu.y,
-                            zIndex: 100,
-                            background: 'var(--bg-primary)',
-                            boxShadow: 'var(--shadow-lg)',
-                            borderRadius: '8px',
-                            padding: '8px 0',
-                            minWidth: '220px',
-                            border: '1px solid var(--border)'
-                          }}
-                          onContextMenu={(e) => { e.preventDefault(); setContextMenu(null); }}
-                        >
-                          {contextMenu.type === "node" ? (
-                            <>
-                              <button className="context-menu-item" onClick={() => handleMenuItemClick("expand")}>
-                                <Maximize size={16} /> 展开选中节点
-                              </button>
-                              <button className="context-menu-item" onClick={() => handleMenuItemClick("draw_edge")}>
-                                <ArrowUpRight size={16} /> 牵拉连线到...
-                              </button>
-                              <button className="context-menu-item" onClick={() => handleMenuItemClick("dismiss")}>
-                                <EyeOff size={16} /> 隐藏选中节点
-                              </button>
-                              <button className="context-menu-item" onClick={() => handleMenuItemClick("unpin")}>
-                                <PinOff size={16} /> 取消固定
-                              </button>
-                              <div className="context-menu-divider" />
-                              <button className="context-menu-item" onClick={() => handleMenuItemClick("show_rels")}>
-                                <Link size={16} /> 显示所有关系
-                              </button>
-                              <button className="context-menu-item" onClick={() => handleMenuItemClick("undo_connect")}>
-                                <Undo2 size={16} /> 隐藏关联关系
-                                <span style={{ fontSize: 11, color: 'var(--text-faint)', marginLeft: 'auto' }}>
-                                  隐藏 {graphData.edges.filter(e => String(e.source) === contextMenu.id || String(e.target) === contextMenu.id).length} 个关系
-                                </span>
-                              </button>
-                              <div className="context-menu-divider" />
-                              <button className="context-menu-item delete" style={{ color: 'var(--error-text)' }} onClick={() => handleMenuItemClick("delete_db")}>
-                                <Trash2 size={16} /> 删除节点
-                              </button>
-                            </>
-                          ) : contextMenu.type === "edge" ? (
-                            <>
-                              <button className="context-menu-item" onClick={() => handleMenuItemClick("dismiss")}>
-                                <EyeOff size={16} /> 隐藏选中关系
-                              </button>
-                              <div className="context-menu-divider" />
-                              <button className="context-menu-item" onClick={() => handleMenuItemClick("show_rels")}>
-                                <Link size={16} /> 显示所有关系
-                              </button>
-                              <button className="context-menu-item" onClick={() => handleMenuItemClick("undo_connect")}>
-                                <Undo2 size={16} /> 撤销连接
-                              </button>
-                              <div className="context-menu-divider" />
-                              <button className="context-menu-item delete" style={{ color: 'var(--error-text)' }} onClick={() => handleMenuItemClick("delete_db")}>
-                                <Trash2 size={16} /> 删除关系
-                              </button>
-                            </>
-                          ) : (
-                            <>
-                              <button className="context-menu-item" style={{ color: 'var(--accent)' }} onClick={() => handleMenuItemClick("create_node")}>
-                                <PlusCircle size={16} /> 新建实体
-                              </button>
-                            </>
-                          )}
-                        </div>
+                        <ContextMenu
+                          contextMenu={contextMenu}
+                          setContextMenu={setContextMenu}
+                          handleMenuItemClick={handleMenuItemClick}
+                          drawingEdgeSource={drawingEdgeSource}
+                          setDrawingEdgeSource={setDrawingEdgeSource}
+                        />
                       )}
                       {drawingEdgeSource && (
                         <div style={{ position: 'absolute', top: 16, left: '50%', transform: 'translateX(-50%)', background: 'var(--brand-primary)', color: '#fff', padding: '8px 16px', borderRadius: 20, fontSize: 13, boxShadow: 'var(--shadow-md)', zIndex: 50, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1328,172 +899,23 @@ function App() {
 
             {/* 右侧属性详情面板 */}
             {detail && (
-              <div className="detail-panel-right">
-                <div className="detail-panel-header">
-                  <div className="detail-type">
-                    <span className={`detail-type-badge ${detail.type}`}>
-                      {detail.type === "node" ? "节点" : "关系"}
-                    </span>
-                    <span className="detail-title">
-                      {detail.type === "node"
-                        ? (detail.properties?.name || `#${detail.id}`)
-                        : (detail.label || "RELATIONSHIP")}
-                    </span>
-                  </div>
-                  <button className="detail-close-btn" onClick={() => setDetail(null)}>
-                    <IconX />
-                  </button>
-                </div>
-
-                {detail.type === "node" && detail.labels && detail.labels.length > 0 && (
-                  <div className="detail-labels">
-                    {detail.labels.map((l) => (
-                      <span key={l} className="detail-label-tag">{l}</span>
-                    ))}
-                  </div>
-                )}
-
-                {detail.type === "edge" && (
-                  <div className="detail-edge-info">
-                    <div className="detail-edge-visual">
-                      <span className="detail-edge-node">{detail.source}</span>
-                      <span className="detail-edge-arrow">→</span>
-                      <span className="detail-edge-type">{detail.label}</span>
-                      <span className="detail-edge-arrow">→</span>
-                      <span className="detail-edge-node">{detail.target}</span>
-                    </div>
-                  </div>
-                )}
-
-                <div className="detail-panel-body">
-                  <div className="detail-section-title">PROPERTIES</div>
-                  <div className="detail-prop-row">
-                    <span className="detail-prop-key">id</span>
-                    <span className="detail-prop-value">{detail.id}</span>
-                  </div>
-                  {Object.entries(detail.properties)
-                    .filter(([key]) => key !== "_labels")
-                    .map(([key, val]) => (
-                      <div className="detail-prop-row" key={key} style={{ position: 'relative' }} 
-                           onMouseEnter={e => {
-                             const btn = e.currentTarget.querySelector('.detail-prop-del-btn') as HTMLElement;
-                             if(btn) btn.style.opacity = '1';
-                           }}
-                           onMouseLeave={e => {
-                             const btn = e.currentTarget.querySelector('.detail-prop-del-btn') as HTMLElement;
-                             if(btn) btn.style.opacity = '0';
-                           }}>
-                        <span className="detail-prop-key">{key}</span>
-                        {editingProp === key ? (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minWidth: 0, marginTop: -4 }}>
-                            <textarea
-                              style={{
-                                width: '100%',
-                                boxSizing: 'border-box',
-                                padding: '6px 8px',
-                                fontSize: 12,
-                                lineHeight: 1.5,
-                                fontFamily: 'inherit',
-                                border: '1px solid var(--accent)',
-                                borderRadius: 6,
-                                background: 'var(--bg-secondary)',
-                                color: 'var(--text-primary)',
-                                resize: 'vertical',
-                                minHeight: 48,
-                                outline: 'none',
-                                boxShadow: '0 0 0 3px rgba(59, 130, 246, 0.15)',
-                                transition: 'all 0.2s'
-                              }}
-                              value={editValue}
-                              onChange={e => setEditValue(e.target.value)}
-                              autoFocus
-                            />
-                            <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-                              <button
-                                style={{ padding: '5px 12px', fontSize: 11, fontWeight: 500, background: 'transparent', color: 'var(--text-muted)', border: '1px solid var(--border)', borderRadius: 5, cursor: 'pointer', transition: 'all 0.2s' }}
-                                onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-primary)'; e.currentTarget.style.background = 'var(--bg-tertiary)'; }}
-                                onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'transparent'; }}
-                                onClick={() => setEditingProp(null)}
-                                disabled={savingProp}
-                              >
-                                取消
-                              </button>
-                              <button
-                                style={{ padding: '5px 16px', fontSize: 11, fontWeight: 600, background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 5, cursor: 'pointer', boxShadow: '0 2px 4px rgba(37,99,224,0.2)', transition: 'all 0.2s' }}
-                                onMouseEnter={e => e.currentTarget.style.filter = 'brightness(1.1)'}
-                                onMouseLeave={e => e.currentTarget.style.filter = 'brightness(1)'}
-                                onClick={() => handleSaveProp(key, editValue)}
-                                disabled={savingProp}
-                              >
-                                {savingProp ? '保存中...' : '确认修改'}
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                          <span
-                            className="detail-prop-value"
-                            title="点击修改内容"
-                            style={{ cursor: 'pointer', borderBottom: '1px dashed transparent', paddingBottom: 1, flex: 1 }}
-                            onMouseEnter={e => e.currentTarget.style.borderBottom = '1px dashed var(--accent)'}
-                            onMouseLeave={e => e.currentTarget.style.borderBottom = '1px dashed transparent'}
-                            onClick={() => { setEditingProp(key); setEditValue(typeof val === "object" ? JSON.stringify(val) : String(val)); }}
-                          >
-                            {typeof val === "object" ? JSON.stringify(val) : String(val)}
-                          </span>
-                        )}
-                        {editingProp !== key && (
-                          <button 
-                            className="detail-prop-del-btn"
-                            title="从数据库删除此属性"
-                            onClick={() => handleDeleteProp(key)}
-                            style={{ position: 'absolute', right: 0, top: 4, opacity: 0, background: 'transparent', border: 'none', color: 'var(--error-text)', cursor: 'pointer', transition: 'all 0.2s', padding: 2 }}
-                          >
-                            <Trash2 size={12}/>
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  
-                  {addingProp ? (
-                    <div style={{ padding: '12px 0 0 0', marginTop: 12, borderTop: '1px solid var(--border-light)' }}>
-                      <input 
-                        placeholder="属性名 (Key)" 
-                        value={newPropKey} 
-                        onChange={e => setNewPropKey(e.target.value)} 
-                        style={{ width: '100%', marginBottom: 8, boxSizing: 'border-box', padding: '6px 8px', fontSize: 12, borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-primary)', color: 'var(--text-primary)', outline: 'none' }} 
-                        autoFocus
-                      />
-                      <textarea 
-                        placeholder="属性值 (Value)" 
-                        value={newPropValue} 
-                        onChange={e => setNewPropValue(e.target.value)} 
-                        style={{ width: '100%', boxSizing: 'border-box', padding: '6px 8px', fontSize: 12, borderRadius: 4, border: '1px solid var(--border)', minHeight: 60, resize: 'vertical', background: 'var(--bg-primary)', color: 'var(--text-primary)', outline: 'none' }} 
-                      />
-                      <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', marginTop: 8 }}>
-                         <button onClick={() => { setAddingProp(false); setNewPropKey(""); setNewPropValue(""); }} style={{ padding: '5px 12px', fontSize: 11, fontWeight: 500, background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>取消</button>
-                         <button onClick={() => {
-                            if(newPropKey && newPropKey.trim()) {
-                               handleSaveProp(newPropKey.trim(), newPropValue).then(() => { setAddingProp(false); setNewPropKey(""); setNewPropValue(""); });
-                            }
-                         }} style={{ padding: '5px 16px', fontSize: 11, fontWeight: 600, background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 5, cursor: 'pointer', boxShadow: '0 2px 4px rgba(37,99,224,0.2)' }}>
-                           {savingProp ? '保存中...' : '保存新字段'}
-                         </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div style={{ marginTop: 16, textAlign: 'center' }}>
-                      <button 
-                        onClick={() => setAddingProp(true)}
-                        style={{ background: 'transparent', border: '1px dashed var(--border)', color: 'var(--text-muted)', width: '100%', padding: '8px', fontSize: 11, fontWeight: 500, borderRadius: 6, cursor: 'pointer', transition: 'all 0.2s', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 4 }}
-                        onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-primary)'; e.currentTarget.style.borderColor = 'var(--text-muted)' }}
-                        onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.borderColor = 'var(--border)' }}
-                      >
-                         <PlusCircle size={14}/> 添加新属性字段
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
+              <DetailPanel
+                detail={detail}
+                setDetail={setDetail}
+                editingProp={editingProp}
+                setEditingProp={setEditingProp}
+                editValue={editValue}
+                setEditValue={setEditValue}
+                savingProp={savingProp}
+                addingProp={addingProp}
+                setAddingProp={setAddingProp}
+                newPropKey={newPropKey}
+                setNewPropKey={setNewPropKey}
+                newPropValue={newPropValue}
+                setNewPropValue={setNewPropValue}
+                handleSaveProp={handleSaveProp}
+                handleDeleteProp={handleDeleteProp}
+              />
             )}
           </div>
         </div>
