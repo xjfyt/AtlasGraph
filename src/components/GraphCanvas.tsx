@@ -22,6 +22,9 @@ function getLabelColorIndex(labels: string[]): number {
   return Math.abs(hash) % COLORS.length;
 }
 
+import { save } from '@tauri-apps/plugin-dialog';
+import { writeFile } from '@tauri-apps/plugin-fs';
+
 export default function GraphCanvas({ data, onNodeClick, onEdgeClick, onCanvasClick }: GraphCanvasProps) {
   const callbacksRef = useRef({ onNodeClick, onEdgeClick, onCanvasClick });
   callbacksRef.current = { onNodeClick, onEdgeClick, onCanvasClick };
@@ -112,9 +115,45 @@ export default function GraphCanvas({ data, onNodeClick, onEdgeClick, onCanvasCl
     setSearchText("");
   };
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (nvlRef.current) {
-      nvlRef.current.saveToFile({ filename: "graph_export.png", backgroundColor: "#ffffff" });
+      try {
+        const dataUrl = nvlRef.current.getImageDataUrl({ backgroundColor: "#ffffff" });
+        if (!dataUrl) {
+          alert("截图获取失败：渲染引擎可能尚在初始化");
+          return;
+        }
+        
+        // 提取 base64 数据体
+        const base64Data = dataUrl.split(",")[1];
+        if (!base64Data) return;
+
+        const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+        
+        // 唤起原生另存为对话框
+        const filePath = await save({
+          filters: [{ name: 'Image', extensions: ['png'] }],
+          defaultPath: `kg_export_${timestamp}.png`,
+        });
+
+        // 如果用户选择了路径（没有取消操作）
+        if (filePath) {
+          // JS 中将 base64 解码并转成 uint8 字节数组
+          const binaryString = atob(base64Data);
+          const bytes = new Uint8Array(binaryString.length);
+          for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+          }
+          
+          // 通过原生 fs 接口真实写入文件
+          await writeFile(filePath, bytes);
+          alert("导出成功，图谱已保存至：" + filePath);
+        }
+      } catch (err) {
+        alert("导出图片出现异常: " + String(err));
+      }
+    } else {
+      alert("请等待画布加载完毕");
     }
   };
 
