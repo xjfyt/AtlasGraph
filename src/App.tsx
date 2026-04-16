@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { EyeOff, PinOff, Link, Undo2, Maximize, Trash2, PlusCircle, ArrowUpRight } from "lucide-react";
