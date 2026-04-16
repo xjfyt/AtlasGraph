@@ -162,7 +162,7 @@ function App() {
   const [dbType, setDbType] = useState<"neo4j" | "kuzu">("kuzu");
   const [uri, setUri] = useState("neo4j://localhost:7687");
   const [user, setUser] = useState("neo4j");
-  const [password, setPassword] = useState("password");
+  const [password, setPassword] = useState("mimouse313");
   const [kuzuPath, setKuzuPath] = useState("./data/db/kuzu_db.kuzu");
 
   // 连接状态
@@ -204,6 +204,7 @@ function App() {
   });
 
   // Schema 信息
+  const [schemaStats, setSchemaStats] = useState<any>(null);
   const [schemaLabels, setSchemaLabels] = useState<string[]>([]);
   const [schemaRelTypes, setSchemaRelTypes] = useState<string[]>([]);
   const [schemaProperties, setSchemaProperties] = useState<string[]>([]);
@@ -240,37 +241,10 @@ function App() {
   // ===== 获取 Schema =====
   const fetchSchema = async () => {
     try {
-      const labelsResult: any = await invoke("execute_cypher", {
-        request: { query: "CALL db.labels() YIELD label RETURN label" },
-      });
-      if (labelsResult.nodes) {
-        const labels = labelsResult.nodes.map((n: any) => {
-          const props = n.properties;
-          if (typeof props === "object" && props.label) return props.label;
-          return null;
-        }).filter(Boolean);
-        if (labels.length > 0) setSchemaLabels(labels);
-      }
-    } catch {
-      try {
-        await invoke("execute_cypher", {
-          request: { query: "MATCH (n) WITH DISTINCT labels(n) AS lbls UNWIND lbls AS l RETURN DISTINCT l AS label LIMIT 50" },
-        });
-      } catch { /* ignore */ }
-    }
-
-    try {
-      const relResult: any = await invoke("execute_cypher", {
-        request: { query: "CALL db.relationshipTypes() YIELD relationshipType RETURN relationshipType" },
-      });
-      if (relResult.nodes) {
-        const types = relResult.nodes.map((n: any) => {
-          const props = n.properties;
-          if (typeof props === "object" && props.relationshipType) return props.relationshipType;
-          return null;
-        }).filter(Boolean);
-        if (types.length > 0) setSchemaRelTypes(types);
-      }
+      const stats: any = await invoke("get_schema_stats");
+      setSchemaStats(stats);
+      setSchemaLabels(stats.labels.map((l: any) => l.name));
+      setSchemaRelTypes(stats.rel_types.map((t: any) => t.name));
     } catch { /* ignore */ }
 
     try {
@@ -324,7 +298,9 @@ function App() {
         if (def) setSelectedDb(def.name);
       } catch (_) { /* ignore */ }
 
-      fetchSchema();
+      await fetchSchema();
+      // 连接成功后，自动执行特定的初始化查询
+      handleExecute("MATCH p=()-[]->() RETURN p LIMIT 25;");
     } catch (err: any) {
       if (currentId !== connectIdRef.current) return;
       setConnected(false);
@@ -366,12 +342,11 @@ function App() {
   };
 
   // ===== 执行查询 =====
-  const handleExecute = async () => {
-    if (!query.trim()) return;
-    if (!connected) {
-      setError("请先连接数据库");
-      return;
-    }
+  const handleExecute = async (override?: string | any) => {
+    const q = typeof override === "string" ? override : query;
+    if (!q.trim()) return;
+    
+    if (typeof override === "string") setQuery(q);
     setLoading(true);
     setError("");
     setExecTime(null);
@@ -379,11 +354,11 @@ function App() {
     const t0 = performance.now();
     try {
       const result: any = await invoke("execute_cypher", {
-        request: { query },
+        request: { query: q },
       });
       setGraphData(result);
       setExecTime(Math.round(performance.now() - t0));
-      addHistory(query, result.nodes?.length || 0, result.edges?.length || 0);
+      addHistory(q, result.nodes?.length || 0, result.edges?.length || 0);
     } catch (err: any) {
       setError(err.toString());
     } finally {
@@ -439,12 +414,18 @@ function App() {
     typeCounts[t] = (typeCounts[t] || 0) + 1;
   });
 
-  // 点击概览标签 → 自动填充查询
+  // 点击概览标签 → 自动执行查询
+  const handleOverviewAllNodesClick = () => {
+    handleExecute(`MATCH (n) RETURN n LIMIT 25`);
+  };
+  const handleOverviewAllRelsClick = () => {
+    handleExecute(`MATCH p=()-[]->() RETURN p LIMIT 25`);
+  };
   const handleOverviewLabelClick = (label: string) => {
-    setQuery(`MATCH (n:\`${label}\`) RETURN n LIMIT 25`);
+    handleExecute(`MATCH (n:\`${label}\`) RETURN n LIMIT 25`);
   };
   const handleOverviewRelClick = (relType: string) => {
-    setQuery(`MATCH (a)-[r:\`${relType}\`]->(b) RETURN a, r, b LIMIT 25`);
+    handleExecute(`MATCH p=()-[r:\`${relType}\`]->() RETURN p LIMIT 25`);
   };
 
   const TAG_COLORS = ["tag-pink", "tag-green", "tag-yellow", "tag-blue", "tag-purple", "tag-orange"];
@@ -778,38 +759,56 @@ function App() {
                       />
                       {/* 左侧概览面板 - Neo4j 风格 */}
                       <div className="result-overview">
-                        <h4>Results overview</h4>
+                        <h4>图谱概览</h4>
                         <div className="overview-section">
-                          <div className="overview-row">
-                            <span className="label">Nodes ({graphData.nodes.length})</span>
+                          <div className="overview-row" style={{ marginBottom: 8 }}>
+                            <span className="label">所有实体 ({schemaStats ? schemaStats.total_nodes : graphData.nodes.length})</span>
                           </div>
-                          {Object.entries(labelCounts).map(([label, count], i) => (
+                          <div
+                            className="overview-label-row clickable"
+                            onClick={handleOverviewAllNodesClick}
+                            title="点击查询所有实体"
+                          >
+                            <span className="overview-dot" style={{ background: "#cbd5e1" }} />
+                            <span className="overview-label-text">*({schemaStats ? schemaStats.total_nodes : graphData.nodes.length})</span>
+                            <span className="overview-label-name">所有实体</span>
+                          </div>
+                          {(schemaStats ? schemaStats.labels : Object.entries(labelCounts).map(([name, count]) => ({name, count}))).map((lbl: any, i: number) => (
                             <div
-                              key={label}
+                              key={lbl.name}
                               className="overview-label-row clickable"
-                              onClick={() => handleOverviewLabelClick(label)}
-                              title={`点击查询 ${label} 节点`}
+                              onClick={() => handleOverviewLabelClick(lbl.name)}
+                              title={`点击查询 ${lbl.name} 实体`}
                             >
                               <span className="overview-dot" style={{ background: GRAPH_COLORS[i % GRAPH_COLORS.length] }} />
-                              <span className="overview-label-text">*({count})</span>
-                              <span className="overview-label-name">{label} ({count})</span>
+                              <span className="overview-label-text">*({lbl.count})</span>
+                              <span className="overview-label-name">{lbl.name} ({lbl.count})</span>
                             </div>
                           ))}
                         </div>
                         <div className="overview-section">
-                          <div className="overview-row">
-                            <span className="label">Relationships ({graphData.edges.length})</span>
+                          <div className="overview-row" style={{ marginBottom: 8 }}>
+                            <span className="label">所有关系 ({schemaStats ? schemaStats.total_edges : graphData.edges.length})</span>
                           </div>
-                          {Object.entries(typeCounts).map(([type, count]) => (
+                          <div
+                            className="overview-label-row clickable"
+                            onClick={handleOverviewAllRelsClick}
+                            title="点击查询所有关系"
+                          >
+                            <span className="overview-dot" style={{ background: "#94a3b8" }} />
+                            <span className="overview-label-text">*({schemaStats ? schemaStats.total_edges : graphData.edges.length})</span>
+                            <span className="overview-label-name">所有关系</span>
+                          </div>
+                          {(schemaStats ? schemaStats.rel_types : Object.entries(typeCounts).map(([name, count]) => ({name, count}))).map((rel: any) => (
                             <div
-                              key={type}
+                              key={rel.name}
                               className="overview-label-row clickable"
-                              onClick={() => handleOverviewRelClick(type)}
-                              title={`点击查询 ${type} 关系`}
+                              onClick={() => handleOverviewRelClick(rel.name)}
+                              title={`点击查询 ${rel.name} 关系`}
                             >
                               <span className="overview-dot" style={{ background: "#94a3b8" }} />
-                              <span className="overview-label-text">*({count})</span>
-                              <span className="overview-label-name">{type} ({count})</span>
+                              <span className="overview-label-text">*({rel.count})</span>
+                              <span className="overview-label-name">{rel.name} ({rel.count})</span>
                             </div>
                           ))}
                         </div>

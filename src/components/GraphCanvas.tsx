@@ -1,6 +1,7 @@
-import { useRef, useMemo, useCallback } from "react";
+import { useRef, useMemo, useCallback, useEffect, useState } from "react";
 import { InteractiveNvlWrapper } from "@neo4j-nvl/react";
 import type { Node, Relationship, HitTargets } from "@neo4j-nvl/base";
+import { ZoomIn, ZoomOut, Focus, Search, X, Download } from "lucide-react";
 
 interface GraphCanvasProps {
   data: { nodes: any[]; edges: any[] };
@@ -24,20 +25,24 @@ function getLabelColorIndex(labels: string[]): number {
 export default function GraphCanvas({ data, onNodeClick, onEdgeClick, onCanvasClick }: GraphCanvasProps) {
   const callbacksRef = useRef({ onNodeClick, onEdgeClick, onCanvasClick });
   callbacksRef.current = { onNodeClick, onEdgeClick, onCanvasClick };
+  const nvlRef = useRef<any>(null);
+  const [searchText, setSearchText] = useState("");
 
   const nvlNodes: Node[] = useMemo(() => {
     return data.nodes.map((n) => {
       const labels = n.properties?._labels || [];
       const colorIdx = labels.length > 0 ? getLabelColorIndex(labels) : ((n.properties?.level as number) || 0);
       const color = COLORS[colorIdx % COLORS.length];
-      const name = n.properties?.name || `#${n.id}`;
+      
+      // 智能识别最佳实体名称（适配 Neo4j Browser 逻辑）
+      const props = n.properties || {};
+      const name = props.name || props.title || props.filename || props.value || props.id || props.code || `#${n.id}`;
 
       return {
         id: String(n.id),
         color,
         size: 30,
         caption: String(name),
-        captionSize: 2.5,
       };
     });
   }, [data.nodes]);
@@ -70,14 +75,67 @@ export default function GraphCanvas({ data, onNodeClick, onEdgeClick, onCanvasCl
     }
   }, []);
 
+  const handleZoomIn = () => {
+    if (nvlRef.current) {
+      nvlRef.current.setZoom(nvlRef.current.getScale() * 1.3);
+    }
+  };
+
+  const handleZoomOut = () => {
+    if (nvlRef.current) {
+      nvlRef.current.setZoom(nvlRef.current.getScale() / 1.3);
+    }
+  };
+
+  const handleFit = useCallback(() => {
+    if (nvlRef.current) {
+      nvlRef.current.fit();
+    }
+  }, []);
+
+  const handleSearch = () => {
+    if (!searchText.trim() || !nvlRef.current) return;
+    // 不区分大小写匹配节点名称
+    const matchedIds = nvlNodes
+      .filter(n => (n.caption || "").toLowerCase().includes(searchText.toLowerCase()))
+      .map(n => n.id);
+    if (matchedIds.length > 0) {
+      nvlRef.current.fit(matchedIds);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") handleSearch();
+  };
+
+  const handleClearSearch = () => {
+    setSearchText("");
+  };
+
+  const handleDownload = () => {
+    if (nvlRef.current) {
+      nvlRef.current.saveToFile({ filename: "graph_export.png", backgroundColor: "#ffffff" });
+    }
+  };
+
+  useEffect(() => {
+    if (data.nodes.length > 0) {
+      const timer = setTimeout(() => {
+        handleFit();
+      }, 150); // 查询数据挂载后稍作延迟让 D3 引擎定位完成，随后自动自适应视口
+      return () => clearTimeout(timer);
+    }
+  }, [data, handleFit]);
+
   if (nvlNodes.length === 0) return null;
 
   return (
     <div style={{ width: "100%", height: "100%", position: "absolute", inset: 0 }}>
       <InteractiveNvlWrapper
+        ref={nvlRef}
         nodes={nvlNodes}
         rels={nvlRels}
-        layout="forceDirected"
+        layout="d3Force"
         nvlOptions={{
           allowDynamicMinZoom: true,
           disableTelemetry: true,
@@ -91,6 +149,79 @@ export default function GraphCanvas({ data, onNodeClick, onEdgeClick, onCanvasCl
           onDrag: true,
         }}
       />
+      {/* 右上角搜索与下载工具栏 */}
+      <div
+        style={{
+          position: "absolute",
+          top: 24,
+          right: 24,
+          display: "flex",
+          gap: 12,
+          zIndex: 10,
+          alignItems: "center"
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", background: "#ffffff", border: "1px solid #cbd5e1", borderRadius: 6, padding: "6px 12px", boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}>
+          <Search size={16} color="#64748b" style={{ marginRight: 8, cursor: "pointer" }} onClick={handleSearch} />
+          <input 
+            type="text" 
+            placeholder="搜索实体..." 
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            onKeyDown={handleKeyDown}
+            style={{ border: "none", outline: "none", background: "transparent", width: 140, fontSize: 14, color: "#334155" }}
+          />
+          {searchText && (
+            <X size={16} color="#94a3b8" style={{ cursor: "pointer", marginLeft: 4 }} onClick={handleClearSearch} />
+          )}
+        </div>
+        <button
+          onClick={handleDownload}
+          title="导出为PNG"
+          style={{ width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", background: "#ffffff", border: "1px solid #cbd5e1", borderRadius: 6, cursor: "pointer", color: "#475569", boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}
+        >
+          <Download size={18} />
+        </button>
+      </div>
+      {/* 右下角视口控制工具栏 */}
+      <div 
+        style={{ 
+          position: "absolute", 
+          bottom: 24, 
+          right: 24, 
+          display: "flex", 
+          gap: 6,
+          background: "#ffffff",
+          padding: "6px 8px",
+          borderRadius: 8,
+          boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+          border: "1px solid #e2e8f0",
+          zIndex: 10
+        }}
+      >
+        <button 
+          onClick={handleZoomIn} 
+          title="放大" 
+          style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", background: "transparent", border: "none", borderRadius: 4, cursor: "pointer", color: "#475569" }}
+        >
+          <ZoomIn size={18} />
+        </button>
+        <button 
+          onClick={handleZoomOut} 
+          title="缩小" 
+          style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", background: "transparent", border: "none", borderRadius: 4, cursor: "pointer", color: "#475569" }}
+        >
+          <ZoomOut size={18} />
+        </button>
+        <div style={{ width: 1, backgroundColor: "#e2e8f0", margin: "4px 2px" }} />
+        <button 
+          onClick={handleFit} 
+          title="适应屏幕" 
+          style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", background: "transparent", border: "none", borderRadius: 4, cursor: "pointer", color: "#475569" }}
+        >
+          <Focus size={18} />
+        </button>
+      </div>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 pub mod database;
 
-use database::{AppState, ConnectRequest, DatabaseInfo, GraphData, QueryRequest};
+use database::{AppState, ConnectRequest, DatabaseInfo, GraphData, QueryRequest, SchemaStats};
 use tauri::State;
 
 // ===== Tauri Commands =====
@@ -45,6 +45,11 @@ async fn show_window(window: tauri::Window) {
     let _ = window.show();
 }
 
+#[tauri::command]
+async fn get_schema_stats(state: State<'_, AppState>) -> Result<SchemaStats, String> {
+    database::get_schema_stats(&state).await
+}
+
 // ===== 应用入口 =====
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -58,6 +63,7 @@ pub fn run() {
             switch_database,
             execute_cypher,
             show_window,
+            get_schema_stats,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

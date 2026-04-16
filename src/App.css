@@ -27,9 +27,10 @@
   --accent-bg-strong: rgba(59,130,246,0.2);
   --accent-text: #60a5fa;
 
-  --nav-bg: #1e293b;
-  --nav-text: #94a3b8;
-  --nav-hover-bg: rgba(255,255,255,0.08);
+  --nav-bg: #ffffff;
+  --nav-text: #64748b;
+  --nav-hover-bg: #f1f5f9;
+  --nav-hover-text: #0f172a;
 
   --success-bg: #f0fdf4;
   --success-text: #15803d;
@@ -75,6 +76,7 @@
   --nav-bg: #0d1117;
   --nav-text: #8b949e;
   --nav-hover-bg: rgba(255,255,255,0.06);
+  --nav-hover-text: #e2e8f0;
 
   --success-bg: #0d2818;
   --success-text: #4ade80;
@@ -125,6 +127,7 @@ html, body, #root {
   padding: 16px 0;
   gap: 4px;
   z-index: 20;
+  border-right: 1px solid var(--border);
 }
 .nav-logo {
   width: 32px;
@@ -153,7 +156,7 @@ html, body, #root {
   transition: all 0.15s ease;
   position: relative;
 }
-.nav-btn:hover { background: var(--nav-hover-bg); color: #e2e8f0; }
+.nav-btn:hover { background: var(--nav-hover-bg); color: var(--nav-hover-text); }
 .nav-btn.active { background: var(--accent-bg-strong); color: var(--accent-text); }
 .nav-btn svg { width: 20px; height: 20px; flex-shrink: 0; }
 .nav-spacer { flex: 1; }
@@ -247,7 +250,7 @@ html, body, #root {
   justify-content: center;
   transition: all 0.15s;
 }
-.sidebar-expand-btn:hover { background: var(--nav-hover-bg); color: #e2e8f0; }
+.sidebar-expand-btn:hover { background: var(--nav-hover-bg); color: var(--nav-hover-text); }
 .sidebar-expand-btn svg { width: 20px; height: 20px; }
 
 /* ===== 侧边栏表单 ===== */

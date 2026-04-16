@@ -49,6 +49,20 @@ pub struct DatabaseInfo {
     pub status: String,
 }
 
+#[derive(Serialize, Debug, Clone)]
+pub struct SchemaStats {
+    pub total_nodes: i64,
+    pub total_edges: i64,
+    pub labels: Vec<ItemCount>,
+    pub rel_types: Vec<ItemCount>,
+}
+
+#[derive(Serialize, Debug, Clone)]
+pub struct ItemCount {
+    pub name: String,
+    pub count: i64,
+}
+
 // ===== 连接状态 =====
 
 pub struct AppState {
@@ -514,5 +528,69 @@ fn get_kuzu_mock_data() -> GraphData {
             GraphEdge { id: "e10".into(), source: "8".into(), target: "11".into(), label: "LEADS".into(), properties: json!({ "since": "2024" }) },
             GraphEdge { id: "e11".into(), source: "10".into(), target: "11".into(), label: "DEPENDS_ON".into(), properties: json!({}) },
         ],
+    }
+}
+
+// ===== 获取 Schema 统计 =====
+
+pub async fn get_schema_stats(state: &AppState) -> Result<SchemaStats, String> {
+    let info = state.connection_info.lock().await.clone();
+    if !info.connected {
+        return Err("尚未连接数据库".into());
+    }
+
+    if info.is_neo4j {
+        let graph_lock = state.neo4j_graph.lock().await;
+        let graph = graph_lock.as_ref().ok_or("Neo4j 连接已断开")?;
+
+        let mut stats = SchemaStats {
+            total_nodes: 0,
+            total_edges: 0,
+            labels: Vec::new(),
+            rel_types: Vec::new(),
+        };
+
+        if let Ok(mut res) = graph.execute(query("MATCH (n) RETURN count(n) AS c")).await {
+            if let Ok(Some(row)) = res.next().await {
+                stats.total_nodes = row.get("c").unwrap_or(0);
+            }
+        }
+        if let Ok(mut res) = graph.execute(query("MATCH ()-[r]->() RETURN count(r) AS c")).await {
+            if let Ok(Some(row)) = res.next().await {
+                stats.total_edges = row.get("c").unwrap_or(0);
+            }
+        }
+        if let Ok(mut res) = graph.execute(query("MATCH (n) WITH labels(n) AS labels UNWIND labels AS label RETURN label, count(*) AS c")).await {
+            while let Ok(Some(row)) = res.next().await {
+                stats.labels.push(ItemCount { name: row.get("label").unwrap_or_default(), count: row.get("c").unwrap_or(0) });
+            }
+        }
+        if let Ok(mut res) = graph.execute(query("MATCH ()-[r]->() RETURN type(r) AS type, count(*) AS c")).await {
+            while let Ok(Some(row)) = res.next().await {
+                stats.rel_types.push(ItemCount { name: row.get("type").unwrap_or_default(), count: row.get("c").unwrap_or(0) });
+            }
+        }
+
+        stats.labels.sort_by(|a, b| b.count.cmp(&a.count).then(a.name.cmp(&b.name)));
+        stats.rel_types.sort_by(|a, b| b.count.cmp(&a.count).then(a.name.cmp(&b.name)));
+
+        Ok(stats)
+    } else {
+        Ok(SchemaStats {
+            total_nodes: 11,
+            total_edges: 11,
+            labels: vec![
+                ItemCount { name: "Department".into(), count: 4 },
+                ItemCount { name: "Person".into(), count: 4 },
+                ItemCount { name: "Project".into(), count: 2 },
+                ItemCount { name: "Company".into(), count: 1 },
+            ],
+            rel_types: vec![
+                ItemCount { name: "HAS_DEPARTMENT".into(), count: 4 },
+                ItemCount { name: "HAS_MEMBER".into(), count: 4 },
+                ItemCount { name: "LEADS".into(), count: 2 },
+                ItemCount { name: "DEPENDS_ON".into(), count: 1 },
+            ],
+        })
     }
 }
