@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { open } from "@tauri-apps/plugin-dialog";
 import "./App.css";
 import GraphCanvas from "./components/GraphCanvas";
 
@@ -33,12 +34,14 @@ const IconHistory = () => (
     <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
   </svg>
 );
+// @ts-ignore
 const IconLayout = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="12" cy="8" r="4"/><circle cx="5" cy="18" r="3"/><circle cx="19" cy="18" r="3"/>
     <line x1="10" y1="11.5" x2="6.5" y2="15.5"/><line x1="14" y1="11.5" x2="17.5" y2="15.5"/>
   </svg>
 );
+// @ts-ignore
 const IconDownload = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
@@ -99,6 +102,11 @@ const IconPalette = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12" r="1.5"/>
     <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.9 0 1.7-.7 1.7-1.5 0-.4-.2-.7-.4-1-.2-.3-.3-.6-.3-1 0-.8.7-1.5 1.5-1.5H16c3.3 0 6-2.7 6-6 0-5.5-4.5-10-10-10z"/>
+  </svg>
+);
+const IconFolderOpen = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
   </svg>
 );
 
@@ -508,8 +516,42 @@ function App() {
                   ) : (
                     <div className="form-group">
                       <label className="form-label">Kuzu 数据库路径</label>
-                      <input className="form-input" type="text" value={kuzuPath} onChange={(e) => setKuzuPath(e.target.value)} placeholder="./data/db" />
-                      <div className="form-hint">指定本地 Kuzu 数据库持久化目录的路径</div>
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <input 
+                          className="form-input" 
+                          type="text" 
+                          value={kuzuPath} 
+                          onChange={(e) => {
+                            let val = e.target.value.trim();
+                            val = val.replace(/^["']+|["']+$/g, '');
+                            setKuzuPath(val);
+                          }} 
+                          placeholder="./data/db" 
+                          style={{ flex: 1, minWidth: 0, padding: "8px 12px" }} 
+                        />
+                        <button 
+                          className="icon-btn" 
+                          title="选择本地 Kuzu 数据库目录"
+                          style={{ width: '35px', height: '35px', flexShrink: 0, border: '1px solid var(--border)', background: 'var(--bg-primary)' }}
+                          onClick={async () => {
+                            try {
+                              const selected = await open({
+                                directory: false,
+                                multiple: false,
+                                filters: [{ name: 'Kuzu Database', extensions: ['kuzu', 'kz', 'db'] }, { name: 'All Files', extensions: ['*'] }]
+                              });
+                              if (selected && !Array.isArray(selected)) {
+                                setKuzuPath(selected);
+                              }
+                            } catch (err) {
+                              console.error(err);
+                            }
+                          }}
+                        >
+                          <IconFolderOpen />
+                        </button>
+                      </div>
+                      <div className="form-hint">指定本地 Kuzu 数据库文件的路径</div>
                     </div>
                   )}
 
@@ -742,7 +784,6 @@ function App() {
                   </button>
                 </div>
                 <div className="result-tabs-right">
-                  <button className="icon-btn" title="下载"><IconDownload /></button>
                   <button className="icon-btn" title="全屏"><IconMaximize /></button>
                 </div>
               </div>
