@@ -44,4 +44,15 @@ export default defineConfig(async () => ({
       ignored: ["**/src-tauri/**"],
     },
   },
+  build: {
+    chunkSizeWarningLimit: 4000,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ["react", "react-dom", "lucide-react"],
+          neo4j: ["cytoscape", "cytoscape-cose-bilkent", "@neo4j-nvl/react", "@neo4j-nvl/interaction-handlers"]
+        }
+      }
+    }
+  }
 }));

@@ -1,4 +1,3 @@
-import React from "react";
 import { IconX } from "./icons";
 import { Trash2, PlusCircle } from "lucide-react";
 

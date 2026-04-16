@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { open } from "@tauri-apps/plugin-dialog";
-import { EyeOff, PinOff, Link, Undo2, Maximize, Trash2, PlusCircle, ArrowUpRight } from "lucide-react";
+
+
 import "./App.css";
 import GraphCanvas from "./components/GraphCanvas";
 import ConnectView from "./components/ConnectView";
@@ -13,7 +13,7 @@ import ContextMenu from "./components/ContextMenu";
 import DetailPanel from "./components/DetailPanel";
 import GraphToolbar, { ActiveTool } from "./components/GraphToolbar";
 import CreationModal, { CreationModalConfig } from "./components/CreationModal";
-import { IconLayout, IconGraph, IconTable, IconRaw, IconMaximize, IconSpinner, IconPlay, IconX } from "./components/icons";
+import { IconGraph, IconTable, IconRaw, IconMaximize, IconSpinner, IconPlay, IconX } from "./components/icons";
 const GRAPH_COLORS = ["#F4B5BD", "#A5E1D3", "#FCE49E", "#CDB4DB", "#B9E1F9", "#FFDAC1"];
 
 /* ===== 详情类型定义 ===== */

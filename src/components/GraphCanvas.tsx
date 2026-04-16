@@ -37,7 +37,7 @@ export default function GraphCanvas({
   onNodeRightClick, 
   onEdgeRightClick, 
   onCanvasRightClick,
-  selectedEntity 
+  selectedEntity: _selectedEntity 
 }: GraphCanvasProps) {
   const callbacksRef = useRef({ onNodeClick, onEdgeClick, onCanvasClick, onNodeRightClick, onEdgeRightClick, onCanvasRightClick });
   callbacksRef.current = { onNodeClick, onEdgeClick, onCanvasClick, onNodeRightClick, onEdgeRightClick, onCanvasRightClick };

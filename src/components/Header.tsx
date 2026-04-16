@@ -1,4 +1,3 @@
-import React from "react";
 import { IconPanelLeft } from "./icons";
 
 export interface HeaderProps {

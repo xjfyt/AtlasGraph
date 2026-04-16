@@ -1,4 +1,3 @@
-import React from "react";
 import { IconSun, IconMoon, IconMonitor } from "./icons";
 
 export type ThemeMode = "light" | "dark" | "system";
