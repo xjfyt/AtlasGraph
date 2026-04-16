@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
+import { EyeOff, PinOff, Link, Waypoints, Undo2, Maximize } from "lucide-react";
 import "./App.css";
 import GraphCanvas from "./components/GraphCanvas";
 
@@ -203,6 +204,15 @@ function App() {
   // 详情面板 (点击节点/边) - 右侧显示
   const [detail, setDetail] = useState<DetailInfo | null>(null);
 
+  // 右键菜单
+  interface ContextMenuState {
+    type: "node" | "edge";
+    id: string;
+    x: number;
+    y: number;
+  }
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+
   // 历史记录
   const [history, setHistory] = useState<HistoryItem[]>(() => {
     try {
@@ -341,6 +351,33 @@ function App() {
     } catch (_) { /* ignore */ }
   };
 
+  // ===== 安全合并图谱数据 (防止缺节点导致 NVL 白屏) =====
+  const mergeGraphData = useCallback((prev: { nodes: any[], edges: any[] }, result: { nodes: any[], edges: any[] }, append: boolean = false) => {
+    const newNodes = append ? [...prev.nodes] : [];
+    const newEdges = append ? [...prev.edges] : [];
+    
+    result.nodes?.forEach((n: any) => {
+      if (!newNodes.find((pn) => String(pn.id) === String(n.id))) newNodes.push(n);
+    });
+    
+    result.edges?.forEach((e: any) => {
+      const eid = e.id || `${e.source}-${e.target}`;
+      if (!newEdges.find((pe) => String(pe.id || `${pe.source}-${pe.target}`) === String(eid))) newEdges.push(e);
+    });
+    
+    // Safety check for InteractiveNvlWrapper: Ensure all edges have their nodes defined
+    newEdges.forEach(e => {
+      if (e.source && !newNodes.find(n => String(n.id) === String(e.source))) {
+        newNodes.push({ id: e.source, properties: { _labels: ["Unknown"] } });
+      }
+      if (e.target && !newNodes.find(n => String(n.id) === String(e.target))) {
+        newNodes.push({ id: e.target, properties: { _labels: ["Unknown"] } });
+      }
+    });
+
+    return { nodes: newNodes, edges: newEdges };
+  }, []);
+
   // ===== 添加历史记录 =====
   const addHistory = (q: string, nodeCount: number, edgeCount: number) => {
     setHistory(prev => {
@@ -359,12 +396,13 @@ function App() {
     setError("");
     setExecTime(null);
     setDetail(null);
+    setContextMenu(null);
     const t0 = performance.now();
     try {
       const result: any = await invoke("execute_cypher", {
         request: { query: q },
       });
-      setGraphData(result);
+      setGraphData(mergeGraphData({ nodes: [], edges: [] }, result));
       setExecTime(Math.round(performance.now() - t0));
       addHistory(q, result.nodes?.length || 0, result.edges?.length || 0);
     } catch (err: any) {
@@ -376,6 +414,7 @@ function App() {
 
   // ===== 节点/边点击回调 =====
   const handleNodeClick = useCallback((nodeId: string) => {
+    setContextMenu(null);
     const node = graphData.nodes.find((n) => String(n.id) === String(nodeId));
     if (node) {
       const props = node.properties || {};
@@ -390,6 +429,7 @@ function App() {
   }, [graphData]);
 
   const handleEdgeClick = useCallback((edgeId: string) => {
+    setContextMenu(null);
     const edge = graphData.edges.find((e) => {
       const eid = e.id || `${e.source}-${e.target}`;
       return String(eid) === String(edgeId);
@@ -408,7 +448,110 @@ function App() {
 
   const handleCanvasClick = useCallback(() => {
     setDetail(null);
+    setContextMenu(null);
   }, []);
+
+  // 右键菜单事件
+  const handleNodeRightClick = useCallback((nodeId: string, x: number, y: number) => {
+    setContextMenu({ type: "node", id: nodeId, x, y });
+  }, []);
+
+  const handleEdgeRightClick = useCallback((edgeId: string, x: number, y: number) => {
+    setContextMenu({ type: "edge", id: edgeId, x, y });
+  }, []);
+
+  const handleCanvasRightClick = useCallback((_x: number, _y: number) => {
+    setContextMenu(null);
+  }, []);
+
+  // 处理菜单项点击
+  const handleMenuItemClick = async (action: string) => {
+    if (!contextMenu) return;
+    const { type, id } = contextMenu;
+    setContextMenu(null);
+
+    if (action === "dismiss") {
+      if (type === "node") {
+        setGraphData(prev => ({
+          nodes: prev.nodes.filter(n => String(n.id) !== String(id)),
+          edges: prev.edges.filter(e => String(e.source) !== String(id) && String(e.target) !== String(id))
+        }));
+      } else {
+        setGraphData(prev => ({
+          nodes: prev.nodes,
+          edges: prev.edges.filter(e => String(e.id || `${e.source}-${e.target}`) !== String(id))
+        }));
+      }
+    } else if (action === "undo_connect") {
+      if (type === "node") {
+        setGraphData(prev => ({
+          nodes: prev.nodes,
+          edges: prev.edges.filter(e => String(e.source) !== String(id) && String(e.target) !== String(id))
+        }));
+      } else {
+        setGraphData(prev => ({
+          nodes: prev.nodes,
+          edges: prev.edges.filter(e => String(e.id || `${e.source}-${e.target}`) !== String(id))
+        }));
+      }
+    } else if (action === "unpin" && type === "node") {
+      // NVL 内部 API 尚未完全暴露用于取消固定，这里可以在此处对接内部 ref
+      console.log(`Unpin requested for node ${id}`);
+    } else if (action === "expand" && type === "node") {
+      let expandQuery = "";
+      if (dbType === "neo4j") {
+        expandQuery = `MATCH (n)-[r]-(m) WHERE elementId(n) = '${id}' OR toString(id(n)) = '${id}' RETURN n, r, m LIMIT 50`;
+      } else {
+        // Fallback for Kuzu
+        expandQuery = `MATCH (a)-[r]-(b) WHERE toString(offset(id(a))) = '${id.split(':').pop()}' RETURN a, r, b LIMIT 50`;
+      }
+      setLoading(true);
+      try {
+        const result: any = await invoke("execute_cypher", {
+          request: { query: expandQuery },
+        });
+        setGraphData((prev) => mergeGraphData(prev, result, true));
+      } catch (err: any) {
+        setError(err.toString());
+      } finally {
+        setLoading(false);
+      }
+    } else if (action === "show_rels" && type === "node") {
+      let relQuery = "";
+      if (dbType === "neo4j") {
+        relQuery = `MATCH (n)-[r]-() WHERE elementId(n) = '${id}' OR toString(id(n)) = '${id}' RETURN r LIMIT 50`;
+      } else {
+        relQuery = `MATCH (a)-[r]-() WHERE toString(offset(id(a))) = '${id.split(':').pop()}' RETURN r LIMIT 50`;
+      }
+      setLoading(true);
+      try {
+        const result: any = await invoke("execute_cypher", {
+          request: { query: relQuery },
+        });
+        setGraphData((prev) => mergeGraphData(prev, result, true));
+      } catch (err: any) {
+        setError(err.toString());
+      } finally {
+        setLoading(false);
+      }
+    } else if (action === "show_rels" && type === "edge") {
+       // Edges typically don't show more rels, but we can query adjacent relationships
+       const edge = graphData.edges.find((e) => String(e.id || `${e.source}-${e.target}`) === String(id));
+       if (edge && edge.source && edge.target) {
+          let relQuery = "";
+          if (dbType === "neo4j") {
+            relQuery = `MATCH (n)-[r]-() WHERE elementId(n) IN ['${edge.source}', '${edge.target}'] OR toString(id(n)) IN ['${edge.source}', '${edge.target}'] RETURN r LIMIT 50`;
+          } else {
+            relQuery = `MATCH (a)-[r]-() WHERE toString(offset(id(a))) IN ['${String(edge.source).split(':').pop()}', '${String(edge.target).split(':').pop()}'] RETURN r LIMIT 50`;
+          }
+          setLoading(true);
+          try {
+            const result: any = await invoke("execute_cypher", { request: { query: relQuery } });
+            setGraphData((prev) => mergeGraphData(prev, result, true));
+          } catch(err: any) { setError(err.toString()); } finally { setLoading(false); }
+       }
+    }
+  };
 
   // ===== 概览数据计算 =====
   const labelCounts: Record<string, number> = {};
@@ -797,7 +940,65 @@ function App() {
                         onNodeClick={handleNodeClick}
                         onEdgeClick={handleEdgeClick}
                         onCanvasClick={handleCanvasClick}
+                        onNodeRightClick={handleNodeRightClick}
+                        onEdgeRightClick={handleEdgeRightClick}
+                        onCanvasRightClick={handleCanvasRightClick}
                       />
+                      {contextMenu && (
+                        <div 
+                          className="context-menu" 
+                          style={{ 
+                            position: 'fixed', 
+                            left: contextMenu.x, 
+                            top: contextMenu.y, 
+                            zIndex: 100,
+                            background: 'var(--bg-primary)',
+                            boxShadow: 'var(--shadow-lg)',
+                            borderRadius: '8px',
+                            padding: '8px 0',
+                            minWidth: '220px',
+                            border: '1px solid var(--border)'
+                          }}
+                          onContextMenu={(e) => { e.preventDefault(); setContextMenu(null); }}
+                        >
+                          {contextMenu.type === "node" ? (
+                            <>
+                              <button className="context-menu-item" onClick={() => handleMenuItemClick("expand")}>
+                                <Maximize size={16} /> 展开选中节点
+                              </button>
+                              <button className="context-menu-item" onClick={() => handleMenuItemClick("dismiss")}>
+                                <EyeOff size={16} /> 隐藏选中节点
+                              </button>
+                              <button className="context-menu-item" onClick={() => handleMenuItemClick("unpin")}>
+                                <PinOff size={16} /> 取消固定
+                              </button>
+                              <div className="context-menu-divider" />
+                              <button className="context-menu-item" onClick={() => handleMenuItemClick("show_rels")}>
+                                <Link size={16} /> 显示所有关系
+                              </button>
+                              <button className="context-menu-item" onClick={() => handleMenuItemClick("undo_connect")}>
+                                <Undo2 size={16} /> 隐藏关联关系
+                                <span style={{ fontSize: 11, color: 'var(--text-faint)', marginLeft: 'auto' }}>
+                                  隐藏 {graphData.edges.filter(e => String(e.source) === contextMenu.id || String(e.target) === contextMenu.id).length} 个关系
+                                </span>
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button className="context-menu-item" onClick={() => handleMenuItemClick("dismiss")}>
+                                <EyeOff size={16} /> 隐藏选中关系
+                              </button>
+                              <div className="context-menu-divider" />
+                              <button className="context-menu-item" onClick={() => handleMenuItemClick("show_rels")}>
+                                <Link size={16} /> 显示所有关系
+                              </button>
+                              <button className="context-menu-item" onClick={() => handleMenuItemClick("undo_connect")}>
+                                <Undo2 size={16} /> 撤销连接
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      )}
                       {/* 左侧概览面板 - Neo4j 风格 */}
                       <div className="result-overview">
                         <h4>图谱概览</h4>

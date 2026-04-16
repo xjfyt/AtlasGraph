@@ -8,6 +8,9 @@ interface GraphCanvasProps {
   onNodeClick?: (nodeId: string) => void;
   onEdgeClick?: (edgeId: string) => void;
   onCanvasClick?: () => void;
+  onNodeRightClick?: (nodeId: string, clientX: number, clientY: number) => void;
+  onEdgeRightClick?: (edgeId: string, clientX: number, clientY: number) => void;
+  onCanvasRightClick?: (clientX: number, clientY: number) => void;
 }
 
 const COLORS = ["#F4B5BD", "#A5E1D3", "#FCE49E", "#CDB4DB", "#B9E1F9", "#FFDAC1", "#C1E1C1", "#FFC0CB"];
@@ -25,9 +28,9 @@ function getLabelColorIndex(labels: string[]): number {
 import { save } from '@tauri-apps/plugin-dialog';
 import { writeFile } from '@tauri-apps/plugin-fs';
 
-export default function GraphCanvas({ data, onNodeClick, onEdgeClick, onCanvasClick }: GraphCanvasProps) {
-  const callbacksRef = useRef({ onNodeClick, onEdgeClick, onCanvasClick });
-  callbacksRef.current = { onNodeClick, onEdgeClick, onCanvasClick };
+export default function GraphCanvas({ data, onNodeClick, onEdgeClick, onCanvasClick, onNodeRightClick, onEdgeRightClick, onCanvasRightClick }: GraphCanvasProps) {
+  const callbacksRef = useRef({ onNodeClick, onEdgeClick, onCanvasClick, onNodeRightClick, onEdgeRightClick, onCanvasRightClick });
+  callbacksRef.current = { onNodeClick, onEdgeClick, onCanvasClick, onNodeRightClick, onEdgeRightClick, onCanvasRightClick };
   const nvlRef = useRef<any>(null);
   const [searchText, setSearchText] = useState("");
 
@@ -75,6 +78,24 @@ export default function GraphCanvas({ data, onNodeClick, onEdgeClick, onCanvasCl
   const handleCanvasClick = useCallback((_event: MouseEvent) => {
     if (callbacksRef.current.onCanvasClick) {
       callbacksRef.current.onCanvasClick();
+    }
+  }, []);
+
+  const handleNodeRightClick = useCallback((node: Node, _hitTargets: HitTargets, event: MouseEvent) => {
+    if (callbacksRef.current.onNodeRightClick) {
+      callbacksRef.current.onNodeRightClick(String(node.id), event.clientX, event.clientY);
+    }
+  }, []);
+
+  const handleRelRightClick = useCallback((rel: Relationship, _hitTargets: HitTargets, event: MouseEvent) => {
+    if (callbacksRef.current.onEdgeRightClick) {
+      callbacksRef.current.onEdgeRightClick(String(rel.id), event.clientX, event.clientY);
+    }
+  }, []);
+
+  const handleCanvasRightClick = useCallback((event: MouseEvent) => {
+    if (callbacksRef.current.onCanvasRightClick) {
+      callbacksRef.current.onCanvasRightClick(event.clientX, event.clientY);
     }
   }, []);
 
@@ -183,6 +204,9 @@ export default function GraphCanvas({ data, onNodeClick, onEdgeClick, onCanvasCl
           onNodeClick: handleNodeClick,
           onRelationshipClick: handleRelClick,
           onCanvasClick: handleCanvasClick,
+          onNodeRightClick: handleNodeRightClick,
+          onRelationshipRightClick: handleRelRightClick,
+          onCanvasRightClick: handleCanvasRightClick,
           onPan: true,
           onZoom: true,
           onDrag: true,
