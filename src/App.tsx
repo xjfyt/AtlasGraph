@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
-import { EyeOff, PinOff, Link, Undo2, Maximize } from "lucide-react";
+import { EyeOff, PinOff, Link, Undo2, Maximize, Trash2, PlusCircle, ArrowUpRight } from "lucide-react";
 import "./App.css";
 import GraphCanvas from "./components/GraphCanvas";
 
@@ -215,6 +215,10 @@ function App() {
   const [editingProp, setEditingProp] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const [savingProp, setSavingProp] = useState(false);
+  const [drawingEdgeSource, setDrawingEdgeSource] = useState<string | null>(null);
+  const [addingProp, setAddingProp] = useState(false);
+  const [newPropKey, setNewPropKey] = useState("");
+  const [newPropValue, setNewPropValue] = useState("");
 
   // 历史记录
   const [history, setHistory] = useState<HistoryItem[]>(() => {
@@ -418,6 +422,27 @@ function App() {
   // ===== 节点/边点击回调 =====
   const handleNodeClick = useCallback((nodeId: string) => {
     setContextMenu(null);
+    if (drawingEdgeSource) {
+      setDrawingEdgeSource(null);
+      const edgeLabel = window.prompt("输入新的关系名称 (如: RELATED_TO):", "RELATED_TO");
+      if (edgeLabel && edgeLabel.trim()) {
+        const typeStr = edgeLabel.trim();
+        let createQuery = "";
+        if (dbType === "neo4j") {
+          createQuery = `MATCH (a), (b) WHERE (elementId(a) = '${drawingEdgeSource}' OR toString(id(a)) = '${drawingEdgeSource}') AND (elementId(b) = '${nodeId}' OR toString(id(b)) = '${nodeId}') CREATE (a)-[r:\`${typeStr}\`]->(b) RETURN a, r, b`;
+        } else {
+          createQuery = `MATCH (a), (b) WHERE toString(offset(id(a))) = '${drawingEdgeSource.split(':').pop()}' AND toString(offset(id(b))) = '${nodeId.split(':').pop()}' CREATE (a)-[r:\`${typeStr}\`]->(b) RETURN a, r, b`;
+        }
+        
+        setLoading(true);
+        invoke("execute_cypher", { request: { query: createQuery } })
+          .then((result: any) => setGraphData(prev => mergeGraphData(prev, result, true)))
+          .catch((err: any) => setError(err.toString()))
+          .finally(() => setLoading(false));
+      }
+      return;
+    }
+
     const node = graphData.nodes.find((n) => String(n.id) === String(nodeId));
     if (node) {
       const props = node.properties || {};
@@ -429,7 +454,7 @@ function App() {
         properties: props,
       });
     }
-  }, [graphData]);
+  }, [graphData, drawingEdgeSource, dbType, mergeGraphData]);
 
   const handleEdgeClick = useCallback((edgeId: string) => {
     setContextMenu(null);
@@ -463,8 +488,8 @@ function App() {
     setContextMenu({ type: "edge", id: edgeId, x, y });
   }, []);
 
-  const handleCanvasRightClick = useCallback((_x: number, _y: number) => {
-    setContextMenu(null);
+  const handleCanvasRightClick = useCallback((x: number, y: number) => {
+    setContextMenu({ type: "canvas", id: "canvas", x, y });
   }, []);
 
   // 处理菜单项点击
@@ -485,6 +510,57 @@ function App() {
           edges: prev.edges.filter(e => String(e.id || `${e.source}-${e.target}`) !== String(id))
         }));
       }
+    } else if (action === "delete_db") {
+      if (window.confirm("确定要从数据库中彻底删除吗？这无法撤销！")) {
+        setLoading(true);
+        let delQuery = "";
+        if (type === "node") {
+          delQuery = dbType === "neo4j" 
+            ? `MATCH (n) WHERE elementId(n) = '${id}' OR toString(id(n)) = '${id}' DETACH DELETE n`
+            : `MATCH (n) WHERE toString(offset(id(n))) = '${id.split(':').pop()}' DETACH DELETE n`;
+        } else {
+          delQuery = dbType === "neo4j"
+            ? `MATCH ()-[r]-() WHERE elementId(r) = '${id}' OR toString(id(r)) = '${id}' DELETE r`
+            : `MATCH ()-[r]-() WHERE toString(offset(id(r))) = '${id.split(':').pop()}' DELETE r`;
+        }
+        try {
+          await invoke("execute_cypher", { request: { query: delQuery } });
+          if (type === "node") {
+            setGraphData(prev => ({
+              nodes: prev.nodes.filter(n => String(n.id) !== String(id)),
+              edges: prev.edges.filter(e => String(e.source) !== String(id) && String(e.target) !== String(id))
+            }));
+          } else {
+            setGraphData(prev => ({
+              nodes: prev.nodes,
+              edges: prev.edges.filter(e => String(e.id || `${e.source}-${e.target}`) !== String(id))
+            }));
+          }
+        } catch (err: any) {
+          setError(err.toString());
+        } finally {
+          setLoading(false);
+        }
+      }
+    } else if (action === "create_node") {
+      const labelStr = window.prompt("请输入实体分类(Label)，多个逗号分隔，缺省可留空:", "NewConcept");
+      if (labelStr !== null) {
+        const lbls = labelStr.split(",").map(s => s.trim()).filter(Boolean);
+        let createQuery = "";
+        if (lbls.length > 0) {
+          const labels = lbls.map(l => `:\`${l}\``).join("");
+          createQuery = `CREATE (n${labels} {name: 'New Node'}) RETURN n`;
+        } else {
+          createQuery = `CREATE (n {name: 'New Node'}) RETURN n`;
+        }
+        setLoading(true);
+        invoke("execute_cypher", { request: { query: createQuery } })
+           .then((result: any) => setGraphData(prev => mergeGraphData(prev, result, true)))
+           .catch((err: any) => setError(err.toString()))
+           .finally(() => setLoading(false));
+      }
+    } else if (action === "draw_edge") {
+      setDrawingEdgeSource(id);
     } else if (action === "undo_connect") {
       if (type === "node") {
         setGraphData(prev => ({
@@ -600,6 +676,63 @@ function App() {
       setEditingProp(null);
     } catch (err: any) {
       setError(`保存失败: ${err.toString()}`);
+    } finally {
+      setSavingProp(false);
+    }
+  };
+
+  const handleDeleteProp = async (key: string) => {
+    if (!detail) return;
+    if (!window.confirm(`确定要从数据库删除属性 [${key}] 吗？`)) return;
+    setSavingProp(true);
+    let updateQuery = "";
+    if (detail.type === "node") {
+      updateQuery = dbType === "neo4j"
+        ? `MATCH (n) WHERE elementId(n) = '${detail.id}' OR toString(id(n)) = '${detail.id}' REMOVE n.\`${key}\``
+        : `MATCH (n) WHERE toString(offset(id(n))) = '${detail.id.split(':').pop()}' REMOVE n.\`${key}\``;
+    } else {
+      updateQuery = dbType === "neo4j"
+        ? `MATCH ()-[r]-() WHERE elementId(r) = '${detail.id}' OR toString(id(r)) = '${detail.id}' REMOVE r.\`${key}\``
+        : `MATCH ()-[r]-() WHERE toString(offset(id(r))) = '${detail.id.split(':').pop()}' REMOVE r.\`${key}\``;
+    }
+    
+    try {
+      await invoke("execute_cypher", { request: { query: updateQuery } });
+      setGraphData(prev => {
+        if (detail.type === "node") {
+          return {
+            ...prev,
+            nodes: prev.nodes.map(n => {
+               if (String(n.id) === String(detail.id)) {
+                 const newProps = { ...n.properties };
+                 delete newProps[key];
+                 return { ...n, properties: newProps };
+               }
+               return n;
+            })
+          };
+        } else {
+          return {
+            ...prev,
+            edges: prev.edges.map(e => {
+               if (String(e.id || `${e.source}-${e.target}`) === String(detail.id)) {
+                 const newProps = { ...e.properties };
+                 delete newProps[key];
+                 return { ...e, properties: newProps };
+               }
+               return e;
+            })
+          };
+        }
+      });
+      setDetail(prev => {
+        if (!prev) return null;
+        const newProps = { ...prev.properties };
+        delete newProps[key];
+        return { ...prev, properties: newProps };
+      });
+    } catch(err: any) {
+      setError(`删除属性失败: ${err.toString()}`);
     } finally {
       setSavingProp(false);
     }
@@ -1018,6 +1151,9 @@ function App() {
                               <button className="context-menu-item" onClick={() => handleMenuItemClick("expand")}>
                                 <Maximize size={16} /> 展开选中节点
                               </button>
+                              <button className="context-menu-item" onClick={() => handleMenuItemClick("draw_edge")}>
+                                <ArrowUpRight size={16} /> 牵拉连线到...
+                              </button>
                               <button className="context-menu-item" onClick={() => handleMenuItemClick("dismiss")}>
                                 <EyeOff size={16} /> 隐藏选中节点
                               </button>
@@ -1034,8 +1170,12 @@ function App() {
                                   隐藏 {graphData.edges.filter(e => String(e.source) === contextMenu.id || String(e.target) === contextMenu.id).length} 个关系
                                 </span>
                               </button>
+                              <div className="context-menu-divider" />
+                              <button className="context-menu-item delete" style={{ color: 'var(--error-text)' }} onClick={() => handleMenuItemClick("delete_db")}>
+                                <Trash2 size={16} /> 删除节点
+                              </button>
                             </>
-                          ) : (
+                          ) : contextMenu.type === "edge" ? (
                             <>
                               <button className="context-menu-item" onClick={() => handleMenuItemClick("dismiss")}>
                                 <EyeOff size={16} /> 隐藏选中关系
@@ -1047,8 +1187,26 @@ function App() {
                               <button className="context-menu-item" onClick={() => handleMenuItemClick("undo_connect")}>
                                 <Undo2 size={16} /> 撤销连接
                               </button>
+                              <div className="context-menu-divider" />
+                              <button className="context-menu-item delete" style={{ color: 'var(--error-text)' }} onClick={() => handleMenuItemClick("delete_db")}>
+                                <Trash2 size={16} /> 删除关系
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button className="context-menu-item" style={{ color: 'var(--accent)' }} onClick={() => handleMenuItemClick("create_node")}>
+                                <PlusCircle size={16} /> 新建实体
+                              </button>
                             </>
                           )}
+                        </div>
+                      )}
+                      {drawingEdgeSource && (
+                        <div style={{ position: 'absolute', top: 16, left: '50%', transform: 'translateX(-50%)', background: 'var(--brand-primary)', color: '#fff', padding: '8px 16px', borderRadius: 20, fontSize: 13, boxShadow: 'var(--shadow-md)', zIndex: 50, display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span>请点击希望连接的目标节点...</span>
+                          <button onClick={() => setDrawingEdgeSource(null)} style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', opacity: 0.8, display: 'flex', alignItems: 'center' }}>
+                            <IconX />
+                          </button>
                         </div>
                       )}
                       {/* 左侧概览面板 - Neo4j 风格 */}
@@ -1216,7 +1374,15 @@ function App() {
                   {Object.entries(detail.properties)
                     .filter(([key]) => key !== "_labels")
                     .map(([key, val]) => (
-                      <div className="detail-prop-row" key={key}>
+                      <div className="detail-prop-row" key={key} style={{ position: 'relative' }} 
+                           onMouseEnter={e => {
+                             const btn = e.currentTarget.querySelector('.detail-prop-del-btn') as HTMLElement;
+                             if(btn) btn.style.opacity = '1';
+                           }}
+                           onMouseLeave={e => {
+                             const btn = e.currentTarget.querySelector('.detail-prop-del-btn') as HTMLElement;
+                             if(btn) btn.style.opacity = '0';
+                           }}>
                         <span className="detail-prop-key">{key}</span>
                         {editingProp === key ? (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minWidth: 0, marginTop: -4 }}>
@@ -1267,16 +1433,65 @@ function App() {
                           <span
                             className="detail-prop-value"
                             title="点击修改内容"
-                            style={{ cursor: 'pointer', borderBottom: '1px dashed transparent', paddingBottom: 1 }}
-                            onMouseEnter={e => e.currentTarget.style.borderBottom = '1px dashed var(--brand-primary)'}
+                            style={{ cursor: 'pointer', borderBottom: '1px dashed transparent', paddingBottom: 1, flex: 1 }}
+                            onMouseEnter={e => e.currentTarget.style.borderBottom = '1px dashed var(--accent)'}
                             onMouseLeave={e => e.currentTarget.style.borderBottom = '1px dashed transparent'}
                             onClick={() => { setEditingProp(key); setEditValue(typeof val === "object" ? JSON.stringify(val) : String(val)); }}
                           >
                             {typeof val === "object" ? JSON.stringify(val) : String(val)}
                           </span>
                         )}
+                        {editingProp !== key && (
+                          <button 
+                            className="detail-prop-del-btn"
+                            title="从数据库删除此属性"
+                            onClick={() => handleDeleteProp(key)}
+                            style={{ position: 'absolute', right: 0, top: 4, opacity: 0, background: 'transparent', border: 'none', color: 'var(--error-text)', cursor: 'pointer', transition: 'all 0.2s', padding: 2 }}
+                          >
+                            <Trash2 size={12}/>
+                          </button>
+                        )}
                       </div>
                     ))}
+                  
+                  {addingProp ? (
+                    <div style={{ padding: '12px 0 0 0', marginTop: 12, borderTop: '1px solid var(--border-light)' }}>
+                      <input 
+                        placeholder="属性名 (Key)" 
+                        value={newPropKey} 
+                        onChange={e => setNewPropKey(e.target.value)} 
+                        style={{ width: '100%', marginBottom: 8, boxSizing: 'border-box', padding: '6px 8px', fontSize: 12, borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-primary)', color: 'var(--text-primary)', outline: 'none' }} 
+                        autoFocus
+                      />
+                      <textarea 
+                        placeholder="属性值 (Value)" 
+                        value={newPropValue} 
+                        onChange={e => setNewPropValue(e.target.value)} 
+                        style={{ width: '100%', boxSizing: 'border-box', padding: '6px 8px', fontSize: 12, borderRadius: 4, border: '1px solid var(--border)', minHeight: 60, resize: 'vertical', background: 'var(--bg-primary)', color: 'var(--text-primary)', outline: 'none' }} 
+                      />
+                      <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', marginTop: 8 }}>
+                         <button onClick={() => { setAddingProp(false); setNewPropKey(""); setNewPropValue(""); }} style={{ padding: '5px 12px', fontSize: 11, fontWeight: 500, background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>取消</button>
+                         <button onClick={() => {
+                            if(newPropKey && newPropKey.trim()) {
+                               handleSaveProp(newPropKey.trim(), newPropValue).then(() => { setAddingProp(false); setNewPropKey(""); setNewPropValue(""); });
+                            }
+                         }} style={{ padding: '5px 16px', fontSize: 11, fontWeight: 600, background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 5, cursor: 'pointer', boxShadow: '0 2px 4px rgba(37,99,224,0.2)' }}>
+                           {savingProp ? '保存中...' : '保存新字段'}
+                         </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ marginTop: 16, textAlign: 'center' }}>
+                      <button 
+                        onClick={() => setAddingProp(true)}
+                        style={{ background: 'transparent', border: '1px dashed var(--border)', color: 'var(--text-muted)', width: '100%', padding: '8px', fontSize: 11, fontWeight: 500, borderRadius: 6, cursor: 'pointer', transition: 'all 0.2s', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 4 }}
+                        onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-primary)'; e.currentTarget.style.borderColor = 'var(--text-muted)' }}
+                        onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.borderColor = 'var(--border)' }}
+                      >
+                         <PlusCircle size={14}/> 添加新属性字段
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

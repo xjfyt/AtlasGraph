@@ -11,6 +11,7 @@ interface GraphCanvasProps {
   onNodeRightClick?: (nodeId: string, clientX: number, clientY: number) => void;
   onEdgeRightClick?: (edgeId: string, clientX: number, clientY: number) => void;
   onCanvasRightClick?: (clientX: number, clientY: number) => void;
+  selectedEntity?: { type: "node" | "edge"; id: string } | null;
 }
 
 const COLORS = ["#F4B5BD", "#A5E1D3", "#FCE49E", "#CDB4DB", "#B9E1F9", "#FFDAC1", "#C1E1C1", "#FFC0CB"];
@@ -28,7 +29,16 @@ function getLabelColorIndex(labels: string[]): number {
 import { save } from '@tauri-apps/plugin-dialog';
 import { writeFile } from '@tauri-apps/plugin-fs';
 
-export default function GraphCanvas({ data, onNodeClick, onEdgeClick, onCanvasClick, onNodeRightClick, onEdgeRightClick, onCanvasRightClick }: GraphCanvasProps) {
+export default function GraphCanvas({ 
+  data, 
+  onNodeClick, 
+  onEdgeClick, 
+  onCanvasClick, 
+  onNodeRightClick, 
+  onEdgeRightClick, 
+  onCanvasRightClick,
+  selectedEntity 
+}: GraphCanvasProps) {
   const callbacksRef = useRef({ onNodeClick, onEdgeClick, onCanvasClick, onNodeRightClick, onEdgeRightClick, onCanvasRightClick });
   callbacksRef.current = { onNodeClick, onEdgeClick, onCanvasClick, onNodeRightClick, onEdgeRightClick, onCanvasRightClick };
   const nvlRef = useRef<any>(null);
@@ -54,14 +64,20 @@ export default function GraphCanvas({ data, onNodeClick, onEdgeClick, onCanvasCl
   }, [data.nodes]);
 
   const nvlRels: Relationship[] = useMemo(() => {
-    return data.edges.map((e) => ({
-      id: String(e.id || `${e.source}-${e.target}`),
-      from: String(e.source),
-      to: String(e.target),
-      caption: e.label || "",
-      captionSize: 1.8,
-    }));
+    return data.edges.map((e) => {
+      const edgeId = String(e.id || `${e.source}-${e.target}`);
+      
+      return {
+        id: edgeId,
+        from: String(e.source),
+        to: String(e.target),
+        caption: e.label || "",
+        captionSize: 1.8,
+      };
+    });
   }, [data.edges]);
+
+
 
   const handleNodeClick = useCallback((node: Node, _hitTargets: HitTargets, _event: MouseEvent) => {
     if (callbacksRef.current.onNodeClick) {
@@ -77,6 +93,9 @@ export default function GraphCanvas({ data, onNodeClick, onEdgeClick, onCanvasCl
 
   const handleCanvasClick = useCallback((_event: MouseEvent) => {
     if (callbacksRef.current.onCanvasClick) {
+      if (nvlRef.current?.deselectAll) {
+         nvlRef.current.deselectAll();
+      }
       callbacksRef.current.onCanvasClick();
     }
   }, []);
@@ -196,6 +215,7 @@ export default function GraphCanvas({ data, onNodeClick, onEdgeClick, onCanvasCl
         nodes={nvlNodes}
         rels={nvlRels}
         layout="d3Force"
+        interactionOptions={{ selectOnClick: true }}
         nvlOptions={{
           allowDynamicMinZoom: true,
           disableTelemetry: true,
