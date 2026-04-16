@@ -28,3 +28,10 @@ tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 kuzu = "0.11.3"
 
+[profile.release]
+panic = "abort"      # 发生 panic 时直接退出，不保留栈展开代码，可减小体积
+codegen-units = 1    # 使用单个线程进行代码生成，最大化优化效果（会增加编译时间）
+lto = true           # 开启链接时优化 (Link Time Optimization)，大幅减少体积
+opt-level = "z"      # 针对体积进行全量优化 (如果觉得性能下降，可以改为 "s")
+strip = true         # 剥离所有调试信息和符号表（非常有效！）
+
