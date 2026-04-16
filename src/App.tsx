@@ -691,9 +691,23 @@ function App() {
       setGraphData(prev => mergeGraphData(prev, result, true));
       
       if (detail.type === "node" && result.nodes?.length > 0) {
-        handleNodeClick(result.nodes[0].id);
+        const n = result.nodes[0];
+        setDetail({
+          type: "node",
+          id: n.id,
+          labels: n.properties?._labels || [],
+          properties: n.properties || {}
+        });
       } else if (detail.type === "edge" && result.edges?.length > 0) {
-        handleEdgeClick(result.edges[0].id || `${result.edges[0].source}-${result.edges[0].target}`);
+        const e = result.edges[0];
+        setDetail({
+          type: "edge",
+          id: e.id || `${e.source}-${e.target}`,
+          label: e.label,
+          source: e.source,
+          target: e.target,
+          properties: e.properties || {}
+        });
       } else {
         setDetail(null);
       }
@@ -740,6 +754,11 @@ function App() {
   };
 
   const TAG_COLORS = ["tag-pink", "tag-green", "tag-yellow", "tag-blue", "tag-purple", "tag-orange"];
+
+  const mergedData = useMemo(() => ({
+    nodes: [...graphData.nodes, ...tempData.nodes],
+    edges: [...graphData.edges, ...tempData.edges]
+  }), [graphData, tempData]);
 
   return (
     <div className="app-layout">
@@ -828,10 +847,7 @@ function App() {
                 {activeTab === "graph" && (
                     <>
                       <GraphCanvas
-                        data={{
-                          nodes: [...graphData.nodes, ...tempData.nodes],
-                          edges: [...graphData.edges, ...tempData.edges]
-                        }}
+                        data={mergedData}
                         onNodeClick={handleNodeClick}
                         onEdgeClick={handleEdgeClick}
                         onCanvasClick={handleCanvasClick}
