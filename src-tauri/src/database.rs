@@ -573,28 +573,15 @@ async fn execute_kuzu(state: &AppState, cypher: &str) -> Result<GraphData, Strin
     let db = db_lock.as_ref().ok_or("Kuzu 连接不存在")?;
     let conn = Connection::new(db).map_err(|e| format!("初始化连接失败: {}", e))?;
 
-    let mut result = conn.query(cypher)
+    let result = conn.query(cypher)
         .map_err(|e| format!("Kuzu 查询执行失败: {}", e))?;
 
     let mut nodes: std::collections::HashMap<String, GraphNode> = std::collections::HashMap::new();
     let mut edges: std::collections::HashMap<String, GraphEdge> = std::collections::HashMap::new();
 
-    while let Some(row) = result.next() {
-        for val in row.into_iter() {
-            match val {
-                KuzuValue::Node(node_val) => {
-                    let n = extract_kuzu_node(&node_val);
-                    nodes.insert(n.id.clone(), n);
-                }
-                KuzuValue::Rel(rel_val) => {
-                    let e = extract_kuzu_rel(&rel_val);
-                    edges.insert(e.id.clone(), e);
-                }
-                KuzuValue::RecursiveRel { .. } => {
-                    // Recursive rel parsing is skipped for basic layout temporarily
-                }
-                _ => {}
-            }
+    for row in result {
+        for val in row {
+            traverse_kuzu_value(&val, &mut nodes, &mut edges);
         }
     }
 
@@ -602,6 +589,53 @@ async fn execute_kuzu(state: &AppState, cypher: &str) -> Result<GraphData, Strin
         nodes: nodes.into_values().collect(),
         edges: edges.into_values().collect(),
     })
+}
+
+fn traverse_kuzu_value(
+    val: &KuzuValue,
+    nodes: &mut std::collections::HashMap<String, GraphNode>,
+    edges: &mut std::collections::HashMap<String, GraphEdge>,
+) {
+    match val {
+        KuzuValue::Node(node_val) => {
+            let n = extract_kuzu_node(node_val);
+            nodes.insert(n.id.clone(), n);
+        }
+        KuzuValue::Rel(rel_val) => {
+            let e = extract_kuzu_rel(rel_val);
+            edges.insert(e.id.clone(), e);
+        }
+        KuzuValue::RecursiveRel { nodes: n_list, rels: r_list } => {
+            for n_val in n_list {
+                let n = extract_kuzu_node(n_val);
+                nodes.insert(n.id.clone(), n);
+            }
+            for r_val in r_list {
+                let e = extract_kuzu_rel(r_val);
+                edges.insert(e.id.clone(), e);
+            }
+        }
+        KuzuValue::List(_, items) | KuzuValue::Array(_, items) => {
+            for item in items {
+                traverse_kuzu_value(item, nodes, edges);
+            }
+        }
+        KuzuValue::Struct(fields) => {
+            for (_, item) in fields {
+                traverse_kuzu_value(item, nodes, edges);
+            }
+        }
+        KuzuValue::Map(_, pairs) => {
+            for (k, v) in pairs {
+                traverse_kuzu_value(k, nodes, edges);
+                traverse_kuzu_value(v, nodes, edges);
+            }
+        }
+        KuzuValue::Union { value, .. } => {
+            traverse_kuzu_value(value, nodes, edges);
+        }
+        _ => {}
+    }
 }
 
 // ===== 获取 Schema 统计 =====
