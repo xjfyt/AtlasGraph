@@ -1,113 +1,113 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
-import { EyeOff, PinOff, Link, Waypoints, Undo2, Maximize } from "lucide-react";
+import { EyeOff, PinOff, Link, Undo2, Maximize } from "lucide-react";
 import "./App.css";
 import GraphCanvas from "./components/GraphCanvas";
 
 /* ===== SVG 图标 ===== */
 const IconDatabase = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/>
+    <ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M3 5V19A9 3 0 0 0 21 19V5" /><path d="M3 12A9 3 0 0 0 21 12" />
   </svg>
 );
 const IconPlay = () => (
-  <svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="6,3 20,12 6,21"/></svg>
+  <svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="6,3 20,12 6,21" /></svg>
 );
 const IconGraph = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="18" r="3"/>
-    <line x1="8.5" y1="7.5" x2="15.5" y2="16.5"/><line x1="15.5" y1="7.5" x2="8.5" y2="16.5"/>
+    <circle cx="6" cy="6" r="3" /><circle cx="18" cy="6" r="3" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="18" r="3" />
+    <line x1="8.5" y1="7.5" x2="15.5" y2="16.5" /><line x1="15.5" y1="7.5" x2="8.5" y2="16.5" />
   </svg>
 );
 const IconTable = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/>
+    <rect x="3" y="3" width="18" height="18" rx="2" /><line x1="3" y1="9" x2="21" y2="9" /><line x1="3" y1="15" x2="21" y2="15" /><line x1="9" y1="3" x2="9" y2="21" /><line x1="15" y1="3" x2="15" y2="21" />
   </svg>
 );
 const IconRaw = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>
+    <polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" />
   </svg>
 );
 const IconHistory = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+    <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
   </svg>
 );
 // @ts-ignore
 const IconLayout = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="8" r="4"/><circle cx="5" cy="18" r="3"/><circle cx="19" cy="18" r="3"/>
-    <line x1="10" y1="11.5" x2="6.5" y2="15.5"/><line x1="14" y1="11.5" x2="17.5" y2="15.5"/>
+    <circle cx="12" cy="8" r="4" /><circle cx="5" cy="18" r="3" /><circle cx="19" cy="18" r="3" />
+    <line x1="10" y1="11.5" x2="6.5" y2="15.5" /><line x1="14" y1="11.5" x2="17.5" y2="15.5" />
   </svg>
 );
 // @ts-ignore
 const IconDownload = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
   </svg>
 );
 const IconMaximize = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>
+    <polyline points="15 3 21 3 21 9" /><polyline points="9 21 3 21 3 15" /><line x1="21" y1="3" x2="14" y2="10" /><line x1="3" y1="21" x2="10" y2="14" />
   </svg>
 );
 const IconSpinner = () => (
   <svg className="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
-    <path d="M12 2a10 10 0 0 1 10 10" opacity="0.4"/><path d="M12 2a10 10 0 0 0-10 10"/>
+    <path d="M12 2a10 10 0 0 1 10 10" opacity="0.4" /><path d="M12 2a10 10 0 0 0-10 10" />
   </svg>
 );
 const IconChevronLeft = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="15 18 9 12 15 6"/>
+    <polyline points="15 18 9 12 15 6" />
   </svg>
 );
 const IconChevronRight = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="9 18 15 12 9 6"/>
+    <polyline points="9 18 15 12 9 6" />
   </svg>
 );
 const IconPlug = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/>
-    <path d="M12 6v6l4 2"/>
+    <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" />
+    <path d="M12 6v6l4 2" />
   </svg>
 );
 const IconX = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+    <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
   </svg>
 );
 const IconPanelLeft = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/>
+    <rect x="3" y="3" width="18" height="18" rx="2" /><line x1="9" y1="3" x2="9" y2="21" />
   </svg>
 );
 const IconSun = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+    <circle cx="12" cy="12" r="5" /><line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" /><line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" /><line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" /><line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
   </svg>
 );
 const IconMoon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
   </svg>
 );
 const IconMonitor = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+    <rect x="2" y="3" width="20" height="14" rx="2" ry="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" />
   </svg>
 );
 const IconPalette = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12" r="1.5"/>
-    <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.9 0 1.7-.7 1.7-1.5 0-.4-.2-.7-.4-1-.2-.3-.3-.6-.3-1 0-.8.7-1.5 1.5-1.5H16c3.3 0 6-2.7 6-6 0-5.5-4.5-10-10-10z"/>
+    <circle cx="13.5" cy="6.5" r="1.5" /><circle cx="17.5" cy="10.5" r="1.5" /><circle cx="8.5" cy="7.5" r="1.5" /><circle cx="6.5" cy="12" r="1.5" />
+    <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.9 0 1.7-.7 1.7-1.5 0-.4-.2-.7-.4-1-.2-.3-.3-.6-.3-1 0-.8.7-1.5 1.5-1.5H16c3.3 0 6-2.7 6-6 0-5.5-4.5-10-10-10z" />
   </svg>
 );
 const IconFolderOpen = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
   </svg>
 );
 
@@ -212,6 +212,9 @@ function App() {
     y: number;
   }
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  const [editingProp, setEditingProp] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
+  const [savingProp, setSavingProp] = useState(false);
 
   // 历史记录
   const [history, setHistory] = useState<HistoryItem[]>(() => {
@@ -355,16 +358,16 @@ function App() {
   const mergeGraphData = useCallback((prev: { nodes: any[], edges: any[] }, result: { nodes: any[], edges: any[] }, append: boolean = false) => {
     const newNodes = append ? [...prev.nodes] : [];
     const newEdges = append ? [...prev.edges] : [];
-    
+
     result.nodes?.forEach((n: any) => {
       if (!newNodes.find((pn) => String(pn.id) === String(n.id))) newNodes.push(n);
     });
-    
+
     result.edges?.forEach((e: any) => {
       const eid = e.id || `${e.source}-${e.target}`;
       if (!newEdges.find((pe) => String(pe.id || `${pe.source}-${pe.target}`) === String(eid))) newEdges.push(e);
     });
-    
+
     // Safety check for InteractiveNvlWrapper: Ensure all edges have their nodes defined
     newEdges.forEach(e => {
       if (e.source && !newNodes.find(n => String(n.id) === String(e.source))) {
@@ -390,7 +393,7 @@ function App() {
   const handleExecute = async (override?: string | any) => {
     const q = typeof override === "string" ? override : query;
     if (!q.trim()) return;
-    
+
     if (typeof override === "string") setQuery(q);
     setLoading(true);
     setError("");
@@ -535,21 +538,70 @@ function App() {
         setLoading(false);
       }
     } else if (action === "show_rels" && type === "edge") {
-       // Edges typically don't show more rels, but we can query adjacent relationships
-       const edge = graphData.edges.find((e) => String(e.id || `${e.source}-${e.target}`) === String(id));
-       if (edge && edge.source && edge.target) {
-          let relQuery = "";
-          if (dbType === "neo4j") {
-            relQuery = `MATCH (n)-[r]-() WHERE elementId(n) IN ['${edge.source}', '${edge.target}'] OR toString(id(n)) IN ['${edge.source}', '${edge.target}'] RETURN r LIMIT 50`;
-          } else {
-            relQuery = `MATCH (a)-[r]-() WHERE toString(offset(id(a))) IN ['${String(edge.source).split(':').pop()}', '${String(edge.target).split(':').pop()}'] RETURN r LIMIT 50`;
-          }
-          setLoading(true);
-          try {
-            const result: any = await invoke("execute_cypher", { request: { query: relQuery } });
-            setGraphData((prev) => mergeGraphData(prev, result, true));
-          } catch(err: any) { setError(err.toString()); } finally { setLoading(false); }
-       }
+      // Edges typically don't show more rels, but we can query adjacent relationships
+      const edge = graphData.edges.find((e) => String(e.id || `${e.source}-${e.target}`) === String(id));
+      if (edge && edge.source && edge.target) {
+        let relQuery = "";
+        if (dbType === "neo4j") {
+          relQuery = `MATCH (n)-[r]-() WHERE elementId(n) IN ['${edge.source}', '${edge.target}'] OR toString(id(n)) IN ['${edge.source}', '${edge.target}'] RETURN r LIMIT 50`;
+        } else {
+          relQuery = `MATCH (a)-[r]-() WHERE toString(offset(id(a))) IN ['${String(edge.source).split(':').pop()}', '${String(edge.target).split(':').pop()}'] RETURN r LIMIT 50`;
+        }
+        setLoading(true);
+        try {
+          const result: any = await invoke("execute_cypher", { request: { query: relQuery } });
+          setGraphData((prev) => mergeGraphData(prev, result, true));
+        } catch (err: any) { setError(err.toString()); } finally { setLoading(false); }
+      }
+    }
+  };
+
+  // 处理属性保存
+  const handleSaveProp = async (key: string, val: string) => {
+    if (!detail) return;
+    setSavingProp(true);
+    let parsedVal: any = val;
+    if (!isNaN(Number(val)) && val.trim() !== "") parsedVal = Number(val);
+    let cypherVal = typeof parsedVal === "string" ? `'${parsedVal.replace(/'/g, "\\'")}'` : parsedVal;
+
+    let updateQuery = "";
+    if (detail.type === "node") {
+      if (dbType === "neo4j") {
+        updateQuery = `MATCH (n) WHERE elementId(n) = '${detail.id}' OR toString(id(n)) = '${detail.id}' SET n.\`${key}\` = ${cypherVal}`;
+      } else {
+        updateQuery = `MATCH (n) WHERE toString(offset(id(n))) = '${detail.id.split(':').pop()}' SET n.\`${key}\` = ${cypherVal}`;
+      }
+    } else {
+      if (dbType === "neo4j") {
+        updateQuery = `MATCH ()-[r]-() WHERE elementId(r) = '${detail.id}' OR toString(id(r)) = '${detail.id}' SET r.\`${key}\` = ${cypherVal}`;
+      } else {
+        updateQuery = `MATCH ()-[r]-() WHERE toString(offset(id(r))) = '${detail.id.split(':').pop()}' SET r.\`${key}\` = ${cypherVal}`;
+      }
+    }
+
+    try {
+      await invoke("execute_cypher", { request: { query: updateQuery } });
+
+      // 本地刷新数据
+      setGraphData(prev => {
+        if (detail.type === "node") {
+          return {
+            ...prev,
+            nodes: prev.nodes.map(n => String(n.id) === String(detail.id) ? { ...n, properties: { ...n.properties, [key]: parsedVal } } : n)
+          };
+        } else {
+          return {
+            ...prev,
+            edges: prev.edges.map(e => String(e.id || `${e.source}-${e.target}`) === String(detail.id) ? { ...e, properties: { ...e.properties, [key]: parsedVal } } : e)
+          };
+        }
+      });
+      setDetail(prev => prev ? { ...prev, properties: { ...prev.properties, [key]: parsedVal } } : null);
+      setEditingProp(null);
+    } catch (err: any) {
+      setError(`保存失败: ${err.toString()}`);
+    } finally {
+      setSavingProp(false);
     }
   };
 
@@ -660,20 +712,20 @@ function App() {
                     <div className="form-group">
                       <label className="form-label">Kuzu 数据库路径</label>
                       <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                        <input 
-                          className="form-input" 
-                          type="text" 
-                          value={kuzuPath} 
+                        <input
+                          className="form-input"
+                          type="text"
+                          value={kuzuPath}
                           onChange={(e) => {
                             let val = e.target.value.trim();
                             val = val.replace(/^["']+|["']+$/g, '');
                             setKuzuPath(val);
-                          }} 
-                          placeholder="./data/db" 
-                          style={{ flex: 1, minWidth: 0, padding: "8px 12px" }} 
+                          }}
+                          placeholder="./data/db"
+                          style={{ flex: 1, minWidth: 0, padding: "8px 12px" }}
                         />
-                        <button 
-                          className="icon-btn" 
+                        <button
+                          className="icon-btn"
                           title="选择本地 Kuzu 数据库目录"
                           style={{ width: '35px', height: '35px', flexShrink: 0, border: '1px solid var(--border)', background: 'var(--bg-primary)' }}
                           onClick={async () => {
@@ -945,12 +997,12 @@ function App() {
                         onCanvasRightClick={handleCanvasRightClick}
                       />
                       {contextMenu && (
-                        <div 
-                          className="context-menu" 
-                          style={{ 
-                            position: 'fixed', 
-                            left: contextMenu.x, 
-                            top: contextMenu.y, 
+                        <div
+                          className="context-menu"
+                          style={{
+                            position: 'fixed',
+                            left: contextMenu.x,
+                            top: contextMenu.y,
                             zIndex: 100,
                             background: 'var(--bg-primary)',
                             boxShadow: 'var(--shadow-lg)',
@@ -1015,7 +1067,7 @@ function App() {
                             <span className="overview-label-text">*({schemaStats ? schemaStats.total_nodes : graphData.nodes.length})</span>
                             <span className="overview-label-name">所有实体</span>
                           </div>
-                          {(schemaStats ? schemaStats.labels : Object.entries(labelCounts).map(([name, count]) => ({name, count}))).map((lbl: any, i: number) => (
+                          {(schemaStats ? schemaStats.labels : Object.entries(labelCounts).map(([name, count]) => ({ name, count }))).map((lbl: any, i: number) => (
                             <div
                               key={lbl.name}
                               className="overview-label-row clickable"
@@ -1041,7 +1093,7 @@ function App() {
                             <span className="overview-label-text">*({schemaStats ? schemaStats.total_edges : graphData.edges.length})</span>
                             <span className="overview-label-name">所有关系</span>
                           </div>
-                          {(schemaStats ? schemaStats.rel_types : Object.entries(typeCounts).map(([name, count]) => ({name, count}))).map((rel: any) => (
+                          {(schemaStats ? schemaStats.rel_types : Object.entries(typeCounts).map(([name, count]) => ({ name, count }))).map((rel: any) => (
                             <div
                               key={rel.name}
                               className="overview-label-row clickable"
@@ -1156,9 +1208,9 @@ function App() {
                 )}
 
                 <div className="detail-panel-body">
-                  <div className="detail-section-title">Properties</div>
+                  <div className="detail-section-title">PROPERTIES</div>
                   <div className="detail-prop-row">
-                    <span className="detail-prop-key">&lt;id&gt;</span>
+                    <span className="detail-prop-key">id</span>
                     <span className="detail-prop-value">{detail.id}</span>
                   </div>
                   {Object.entries(detail.properties)
@@ -1166,9 +1218,63 @@ function App() {
                     .map(([key, val]) => (
                       <div className="detail-prop-row" key={key}>
                         <span className="detail-prop-key">{key}</span>
-                        <span className="detail-prop-value">
-                          {typeof val === "object" ? JSON.stringify(val) : String(val)}
-                        </span>
+                        {editingProp === key ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minWidth: 0, marginTop: -4 }}>
+                            <textarea
+                              style={{
+                                width: '100%',
+                                boxSizing: 'border-box',
+                                padding: '6px 8px',
+                                fontSize: 12,
+                                lineHeight: 1.5,
+                                fontFamily: 'inherit',
+                                border: '1px solid var(--accent)',
+                                borderRadius: 6,
+                                background: 'var(--bg-secondary)',
+                                color: 'var(--text-primary)',
+                                resize: 'vertical',
+                                minHeight: 48,
+                                outline: 'none',
+                                boxShadow: '0 0 0 3px rgba(59, 130, 246, 0.15)',
+                                transition: 'all 0.2s'
+                              }}
+                              value={editValue}
+                              onChange={e => setEditValue(e.target.value)}
+                              autoFocus
+                            />
+                            <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                              <button
+                                style={{ padding: '5px 12px', fontSize: 11, fontWeight: 500, background: 'transparent', color: 'var(--text-muted)', border: '1px solid var(--border)', borderRadius: 5, cursor: 'pointer', transition: 'all 0.2s' }}
+                                onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-primary)'; e.currentTarget.style.background = 'var(--bg-tertiary)'; }}
+                                onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'transparent'; }}
+                                onClick={() => setEditingProp(null)}
+                                disabled={savingProp}
+                              >
+                                取消
+                              </button>
+                              <button
+                                style={{ padding: '5px 16px', fontSize: 11, fontWeight: 600, background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 5, cursor: 'pointer', boxShadow: '0 2px 4px rgba(37,99,224,0.2)', transition: 'all 0.2s' }}
+                                onMouseEnter={e => e.currentTarget.style.filter = 'brightness(1.1)'}
+                                onMouseLeave={e => e.currentTarget.style.filter = 'brightness(1)'}
+                                onClick={() => handleSaveProp(key, editValue)}
+                                disabled={savingProp}
+                              >
+                                {savingProp ? '保存中...' : '确认修改'}
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <span
+                            className="detail-prop-value"
+                            title="点击修改内容"
+                            style={{ cursor: 'pointer', borderBottom: '1px dashed transparent', paddingBottom: 1 }}
+                            onMouseEnter={e => e.currentTarget.style.borderBottom = '1px dashed var(--brand-primary)'}
+                            onMouseLeave={e => e.currentTarget.style.borderBottom = '1px dashed transparent'}
+                            onClick={() => { setEditingProp(key); setEditValue(typeof val === "object" ? JSON.stringify(val) : String(val)); }}
+                          >
+                            {typeof val === "object" ? JSON.stringify(val) : String(val)}
+                          </span>
+                        )}
                       </div>
                     ))}
                 </div>
