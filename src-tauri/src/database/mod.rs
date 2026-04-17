@@ -3,6 +3,12 @@ use serde_json::Value;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
+#[cfg(all(feature = "kuzu", feature = "lbug"))]
+compile_error!(
+    "feature `kuzu` 与 `lbug` 不能同时启用：lbug 派生自 kuzu，二者静态链接的 CRoaring / Parquet 等 C/C++ 依赖会在链接阶段符号冲突（ld: symbol(s) not found）。\
+     请在 package.json 的 atlasConfig.features 中只保留其中一个（推荐：neo4j + lbug，或 neo4j + kuzu）。"
+);
+
 #[cfg(feature = "kuzu")]
 pub mod kuzu;
 #[cfg(feature = "lbug")]
