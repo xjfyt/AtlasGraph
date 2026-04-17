@@ -15,7 +15,6 @@
   "atlasConfig": {
     "features": [
       "neo4j",
-      "kuzu",
       "lbug"
     ]
   },

@@ -171,12 +171,19 @@ Open the `package.json` file, find (or add) `atlasConfig` and its inner `feature
   "atlasConfig": {
     "features": [
       "neo4j",
-      "kuzu"
+      "lbug"
     ]
   }
 ```
-* **Single function**: If you only want to keep a certain engine, you can change it to only contain `"neo4j"`.
-* **Combinational/Full**: Supports inputting any combination list of `"neo4j"`, `"lbug"`, `"kuzu"`.
+* **Single engine**: keep only one entry, e.g. `"neo4j"`.
+* **Combination**: choose either `"neo4j" + "lbug"` or `"neo4j" + "kuzu"`.
+
+> ⚠️ **`kuzu` and `lbug` cannot be enabled together.**
+> Because `lbug` is a fork of `kuzu`, both statically link the same underlying C/C++ dependencies
+> (`CRoaring`, `Parquet`, etc.). Linking them into a single binary triggers symbol conflicts at link
+> time (`ld: symbol(s) not found for architecture ...`). The project therefore **enforces a mutually
+> exclusive choice at build time** (both the build script and the Rust side assert this). The default
+> combination is `neo4j + lbug`. If you need both `kuzu` and `lbug`, build two separate installers.
 
 #### (2) Execute Auto-Bridging Commands
 After the configuration is complete, directly use the dedicated derivative build trigger commands, and the scaffolding tool will automatically capture the configuration and implement feature builds on the underlying layers:

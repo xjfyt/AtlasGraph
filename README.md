@@ -171,12 +171,18 @@ npm run app:dev
   "atlasConfig": {
     "features": [
       "neo4j",
-      "kuzu"
+      "lbug"
     ]
   }
 ```
 * **单功能**：若只保留某一引擎，可改为只含 `"neo4j"`。
-* **组合/全量型**：支持填入 `"neo4j"`, `"lbug"`, `"kuzu"` 的任一组合配置列表。
+* **组合型**：可任选 `"neo4j" + "lbug"` 或 `"neo4j" + "kuzu"`。
+
+> ⚠️ **不支持 `kuzu` 与 `lbug` 同时启用**：
+> 由于 `lbug` 是 `kuzu` 的 fork，二者静态链接了同名的 C/C++ 底层依赖（`CRoaring`、`Parquet` 等），
+> 在同一个二进制中同时链接会出现链接阶段符号冲突（`ld: symbol(s) not found for architecture ...`）。
+> 因此本项目**编译时会强制二选一**（构建脚本与 Rust 侧均有断言拦截），默认组合为 `neo4j + lbug`。
+> 如果需要同时使用 `kuzu` 和 `lbug`，请分别打两个独立安装包。
 
 #### （2） 执行自动桥接指令
 配置完成后，直接使用专用的衍生构建触发指令，脚手架工具将会自动捕获配置并对底层实施特性构建：
