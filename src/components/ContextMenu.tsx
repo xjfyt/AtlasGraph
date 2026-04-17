@@ -1,5 +1,4 @@
-import React from "react";
-import { Maximize, ArrowUpRight, EyeOff, PinOff, Link, Undo2, Trash2, PlusCircle } from "lucide-react";
+import { Maximize, EyeOff, PinOff, Link, Undo2, Trash2 } from "lucide-react";
 
 export interface ContextMenuState {
   type: "node" | "edge";
@@ -18,7 +17,7 @@ export interface ContextMenuProps {
 }
 
 export default function ContextMenu({
-  contextMenu, setContextMenu, handleMenuItemClick, drawingEdgeSource, setDrawingEdgeSource
+  contextMenu, setContextMenu, handleMenuItemClick, drawingEdgeSource: _drawingEdgeSource, setDrawingEdgeSource: _setDrawingEdgeSource
 }: ContextMenuProps) {
   return (
     <div

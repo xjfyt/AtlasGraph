@@ -1,4 +1,3 @@
-import React from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { IconFolderOpen, IconSpinner, IconPlug } from "./icons";
 
