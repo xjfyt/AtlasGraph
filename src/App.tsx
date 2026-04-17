@@ -15,6 +15,66 @@ import GraphToolbar, { ActiveTool } from "./components/GraphToolbar";
 import { IconGraph, IconTable, IconRaw, IconMaximize, IconSpinner, IconPlay, IconX } from "./components/icons";
 const GRAPH_COLORS = ["#F4B5BD", "#A5E1D3", "#FCE49E", "#CDB4DB", "#B9E1F9", "#FFDAC1"];
 
+/* ===== Cypher 文本辅助 ===== */
+// 把任意 JS 值转成 Cypher 字面量，安全转义字符串中的 '\'、'\''、换行等
+function toCypherLiteral(v: any): string {
+  if (v === null || v === undefined) return "null";
+  if (typeof v === "boolean") return v ? "true" : "false";
+  if (typeof v === "number") return Number.isFinite(v) ? String(v) : "null";
+  if (Array.isArray(v)) return `[${v.map(toCypherLiteral).join(", ")}]`;
+  if (typeof v === "object") {
+    const entries = Object.entries(v).map(([k, val]) => `\`${k}\`: ${toCypherLiteral(val)}`);
+    return `{${entries.join(", ")}}`;
+  }
+  // 字符串：JSON.stringify 给我们 \", \\, \n, \r, \t 等符合 Cypher 的双引号串字面量
+  return JSON.stringify(String(v));
+}
+
+// 把用户输入的字符串转成最合适的 JS 值（用于属性编辑）
+// 仅在文本严格表示数字/布尔/null 时转换；带前导零的数字串保留为字符串
+function parseUserValue(raw: string): any {
+  const trimmed = raw.trim();
+  if (trimmed === "") return "";
+  if (trimmed === "null") return null;
+  if (trimmed === "true") return true;
+  if (trimmed === "false") return false;
+  // 严格数字：不包含前导 0（除 "0" 与 "0." 开头的小数）
+  if (/^-?(0|[1-9]\d*)(\.\d+)?$/.test(trimmed) || /^-?\d+(\.\d+)?$/.test(trimmed)) {
+    if (!/^-?0\d+/.test(trimmed)) {
+      const n = Number(trimmed);
+      if (Number.isFinite(n)) return n;
+    }
+  }
+  return raw;
+}
+
+// 把 Ladybug 节点 id "table_id:offset" 中的 offset 抽出来；非法时返回 null
+function lbugOffset(id: string): string | null {
+  const parts = String(id).split(":");
+  if (parts.length < 2) return null;
+  const off = parts[parts.length - 1];
+  return /^\d+$/.test(off) ? off : null;
+}
+
+// 把后端抛出的 Neo4j/Ladybug 错误翻译成对用户友好的中文提示
+function friendlyDbError(err: any): string {
+  const s = String(err?.toString?.() ?? err ?? "");
+  // Neo4j 唯一约束冲突
+  const uc = s.match(/Node\((\d+)\) already exists with label `?(\w+)`? and property `?(\w+)`? = '([^']+)'/);
+  if (uc) {
+    const [, otherId, lbl, propKey, propVal] = uc;
+    return `数据库存在唯一约束：已有 ${lbl} 节点（ID=${otherId}）的 ${propKey} = '${propVal}'。请改用不同的值，或先在 DB 中移除该唯一约束/合并节点。`;
+  }
+  // Ladybug 主键缺失
+  if (/expects primary key/i.test(s)) {
+    return `Ladybug 该 NODE TABLE 需要主键属性，但当前 CREATE 未提供。${s}`;
+  }
+  if (/Could not set lock on file/i.test(s)) {
+    return `Ladybug 数据库文件被占用：可能其他进程或本程序的旧连接仍持有锁。请关闭后重试。`;
+  }
+  return s;
+}
+
 /* ===== 详情类型定义 ===== */
 interface DetailInfo {
   type: "node" | "edge";
@@ -82,6 +142,7 @@ function App() {
   const [connecting, setConnecting] = useState(false);
   const [connectMsg, setConnectMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const connectIdRef = useRef(0);
+  const queryIdRef = useRef(0);
 
   // 侧边导航栏
   const [activeNav, setActiveNav] = useState("database");
@@ -100,7 +161,7 @@ function App() {
 
   // 侧边栏
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [sidebarWidth, setSidebarWidth] = useState(300);
+  const [sidebarWidth, setSidebarWidth] = useState(280);
   const sidebarRef = useRef<HTMLDivElement>(null);
   const isDragging = useRef(false);
 
@@ -121,6 +182,12 @@ function App() {
   const [activeTool, setActiveTool] = useState<ActiveTool>("pointer");
   const [tempData, setTempData] = useState<{ nodes: any[], edges: any[] }>({ nodes: [], edges: [] });
   const [drawingEdgeSource, setDrawingEdgeSource] = useState<string | null>(null);
+  // 切换工具时清掉正在画的边的临时端点
+  useEffect(() => {
+    if (activeTool !== "create_edge") {
+      setDrawingEdgeSource(null);
+    }
+  }, [activeTool]);
   const [addingProp, setAddingProp] = useState(false);
   const [newPropKey, setNewPropKey] = useState("");
   const [newPropValue, setNewPropValue] = useState("");
@@ -177,19 +244,24 @@ function App() {
       setSchemaRelTypes(stats.rel_types.map((t: any) => t.name));
     } catch { /* ignore */ }
 
-    try {
-      const propResult: any = await invoke("execute_cypher", {
-        request: { query: "CALL db.propertyKeys() YIELD propertyKey RETURN propertyKey" },
-      });
-      if (propResult.nodes) {
-        const keys = propResult.nodes.map((n: any) => {
-          const props = n.properties;
-          if (typeof props === "object" && props.propertyKey) return props.propertyKey;
-          return null;
-        }).filter(Boolean);
-        if (keys.length > 0) setSchemaProperties(keys);
-      }
-    } catch { /* ignore */ }
+    // db.propertyKeys() 仅 Neo4j 支持；Ladybug 调用会抛错
+    if (dbType === "neo4j") {
+      try {
+        const propResult: any = await invoke("execute_cypher", {
+          request: { query: "CALL db.propertyKeys() YIELD propertyKey RETURN propertyKey" },
+        });
+        if (propResult.nodes) {
+          const keys = propResult.nodes.map((n: any) => {
+            const props = n.properties;
+            if (typeof props === "object" && props.propertyKey) return props.propertyKey;
+            return null;
+          }).filter(Boolean);
+          if (keys.length > 0) setSchemaProperties(keys);
+        }
+      } catch { /* ignore */ }
+    } else {
+      setSchemaProperties([]);
+    }
   };
 
   // ===== 连接数据库 =====
@@ -234,7 +306,7 @@ function App() {
     } catch (err: any) {
       if (currentId !== connectIdRef.current) return;
       setConnected(false);
-      setConnectMsg({ ok: false, text: err.toString() });
+      setConnectMsg({ ok: false, text: friendlyDbError(err) });
     } finally {
       if (currentId === connectIdRef.current) {
         setConnecting(false);
@@ -305,6 +377,7 @@ function App() {
     if (!q.trim()) return;
 
     if (typeof override === "string") setQuery(q);
+    const myId = ++queryIdRef.current;
     setLoading(true);
     setError("");
     setExecTime(null);
@@ -316,13 +389,16 @@ function App() {
       const result: any = await invoke("execute_cypher", {
         request: { query: q },
       });
+      // 防止旧请求覆盖新请求
+      if (myId !== queryIdRef.current) return;
       setGraphData(mergeGraphData({ nodes: [], edges: [] }, result));
       setExecTime(Math.round(performance.now() - t0));
       addHistory(q, result.nodes?.length || 0, result.edges?.length || 0);
     } catch (err: any) {
-      setError(err.toString());
+      if (myId !== queryIdRef.current) return;
+      setError(`查询执行失败: ${friendlyDbError(err)}`);
     } finally {
-      setLoading(false);
+      if (myId === queryIdRef.current) setLoading(false);
     }
   };
 
@@ -451,13 +527,33 @@ function App() {
         setLoading(true);
         let delQuery = "";
         if (type === "node") {
-          delQuery = dbType === "neo4j" 
-            ? `MATCH (n) WHERE elementId(n) = '${id}' OR toString(id(n)) = '${id}' DETACH DELETE n`
-            : `MATCH (n) WHERE toString(offset(id(n))) = '${id.split(':').pop()}' DETACH DELETE n`;
+          if (dbType === "neo4j") {
+            delQuery = `MATCH (n) WHERE elementId(n) = '${id}' OR toString(id(n)) = '${id}' DETACH DELETE n`;
+          } else {
+            const off = lbugOffset(id);
+            if (off === null) {
+              setError(`无法解析节点 ID: ${id}`);
+              setLoading(false);
+              return;
+            }
+            delQuery = `MATCH (n) WHERE offset(id(n)) = ${off} DETACH DELETE n`;
+          }
         } else {
-          delQuery = dbType === "neo4j"
-            ? `MATCH ()-[r]-() WHERE elementId(r) = '${id}' OR toString(id(r)) = '${id}' DELETE r`
-            : `MATCH ()-[r]-() WHERE toString(offset(id(r))) = '${id.split(':').pop()}' DELETE r`;
+          if (dbType === "neo4j") {
+            delQuery = `MATCH ()-[r]-() WHERE elementId(r) = '${id}' OR toString(id(r)) = '${id}' DELETE r`;
+          } else {
+            // Ladybug 关系：根据 graphData 找出 source/target/label 重组查询
+            const edge = graphData.edges.find(e => String(e.id || `${e.source}-${e.target}`) === String(id));
+            const srcOff = edge?.source ? lbugOffset(edge.source) : null;
+            const dstOff = edge?.target ? lbugOffset(edge.target) : null;
+            const lbl = edge?.label;
+            if (!edge || !srcOff || !dstOff || !lbl) {
+              setError(`无法定位关系: ${id}`);
+              setLoading(false);
+              return;
+            }
+            delQuery = `MATCH (a)-[r:\`${lbl}\`]->(b) WHERE offset(id(a)) = ${srcOff} AND offset(id(b)) = ${dstOff} DELETE r`;
+          }
         }
         try {
           await invoke("execute_cypher", { request: { query: delQuery } });
@@ -473,7 +569,7 @@ function App() {
             }));
           }
         } catch (err: any) {
-          setError(err.toString());
+          setError(`删除失败: ${friendlyDbError(err)}`);
         } finally {
           setLoading(false);
         }
@@ -498,8 +594,9 @@ function App() {
       if (dbType === "neo4j") {
         expandQuery = `MATCH (n)-[r]-(m) WHERE elementId(n) = '${id}' OR toString(id(n)) = '${id}' RETURN n, r, m LIMIT 50`;
       } else {
-        // Fallback for Ladybug
-        expandQuery = `MATCH (a)-[r]-(b) WHERE toString(offset(id(a))) = '${id.split(':').pop()}' RETURN a, r, b LIMIT 50`;
+        const off = lbugOffset(id);
+        if (off === null) { setError(`无法解析节点 ID: ${id}`); return; }
+        expandQuery = `MATCH (a)-[r]-(b) WHERE offset(id(a)) = ${off} RETURN a, r, b LIMIT 50`;
       }
       setLoading(true);
       try {
@@ -508,7 +605,7 @@ function App() {
         });
         setGraphData((prev) => mergeGraphData(prev, result, true));
       } catch (err: any) {
-        setError(err.toString());
+        setError(`展开邻居失败: ${friendlyDbError(err)}`);
       } finally {
         setLoading(false);
       }
@@ -517,7 +614,10 @@ function App() {
       if (dbType === "neo4j") {
         relQuery = `MATCH (n)-[r]-() WHERE elementId(n) = '${id}' OR toString(id(n)) = '${id}' RETURN r LIMIT 50`;
       } else {
-        relQuery = `MATCH (a)-[r]-() WHERE toString(offset(id(a))) = '${id.split(':').pop()}' RETURN r LIMIT 50`;
+        const off = lbugOffset(id);
+        if (off === null) { setError(`无法解析节点 ID: ${id}`); return; }
+        // 注意：返回 r 时同时需要返回端点否则 r 是 UnboundedRelation；改为返回 a/r/b 让前端构边
+        relQuery = `MATCH (a)-[r]-(b) WHERE offset(id(a)) = ${off} RETURN a, r, b LIMIT 50`;
       }
       setLoading(true);
       try {
@@ -526,25 +626,28 @@ function App() {
         });
         setGraphData((prev) => mergeGraphData(prev, result, true));
       } catch (err: any) {
-        setError(err.toString());
+        setError(`查询关系失败: ${friendlyDbError(err)}`);
       } finally {
         setLoading(false);
       }
     } else if (action === "show_rels" && type === "edge") {
-      // Edges typically don't show more rels, but we can query adjacent relationships
+      // 通过该关系两端点扩展更多关系
       const edge = graphData.edges.find((e) => String(e.id || `${e.source}-${e.target}`) === String(id));
       if (edge && edge.source && edge.target) {
         let relQuery = "";
         if (dbType === "neo4j") {
-          relQuery = `MATCH (n)-[r]-() WHERE elementId(n) IN ['${edge.source}', '${edge.target}'] OR toString(id(n)) IN ['${edge.source}', '${edge.target}'] RETURN r LIMIT 50`;
+          relQuery = `MATCH (n)-[r]-(m) WHERE elementId(n) IN ['${edge.source}', '${edge.target}'] OR toString(id(n)) IN ['${edge.source}', '${edge.target}'] RETURN n, r, m LIMIT 50`;
         } else {
-          relQuery = `MATCH (a)-[r]-() WHERE toString(offset(id(a))) IN ['${String(edge.source).split(':').pop()}', '${String(edge.target).split(':').pop()}'] RETURN r LIMIT 50`;
+          const so = lbugOffset(edge.source);
+          const to = lbugOffset(edge.target);
+          if (!so || !to) { setError(`无法解析端点 ID`); return; }
+          relQuery = `MATCH (a)-[r]-(b) WHERE offset(id(a)) IN [${so}, ${to}] RETURN a, r, b LIMIT 50`;
         }
         setLoading(true);
         try {
           const result: any = await invoke("execute_cypher", { request: { query: relQuery } });
           setGraphData((prev) => mergeGraphData(prev, result, true));
-        } catch (err: any) { setError(err.toString()); } finally { setLoading(false); }
+        } catch (err: any) { setError(`查询关系失败: ${friendlyDbError(err)}`); } finally { setLoading(false); }
       }
     }
   };
@@ -553,22 +656,36 @@ function App() {
   const handleSaveProp = async (key: string, val: string) => {
     if (!detail) return;
     setSavingProp(true);
-    let parsedVal: any = val;
-    if (!isNaN(Number(val)) && val.trim() !== "") parsedVal = Number(val);
-    let cypherVal = typeof parsedVal === "string" ? `'${parsedVal.replace(/'/g, "\\'")}'` : parsedVal;
+    const parsedVal = parseUserValue(val);
+    const cypherVal = toCypherLiteral(parsedVal);
 
     let updateQuery = "";
     if (detail.type === "node") {
       if (dbType === "neo4j") {
         updateQuery = `MATCH (n) WHERE elementId(n) = '${detail.id}' OR toString(id(n)) = '${detail.id}' SET n.\`${key}\` = ${cypherVal}`;
       } else {
-        updateQuery = `MATCH (n) WHERE toString(offset(id(n))) = '${detail.id.split(':').pop()}' SET n.\`${key}\` = ${cypherVal}`;
+        const off = lbugOffset(detail.id);
+        if (off === null) {
+          setError(`无法解析节点 ID: ${detail.id}`);
+          setSavingProp(false);
+          return;
+        }
+        updateQuery = `MATCH (n) WHERE offset(id(n)) = ${off} SET n.\`${key}\` = ${cypherVal}`;
       }
     } else {
       if (dbType === "neo4j") {
         updateQuery = `MATCH ()-[r]-() WHERE elementId(r) = '${detail.id}' OR toString(id(r)) = '${detail.id}' SET r.\`${key}\` = ${cypherVal}`;
       } else {
-        updateQuery = `MATCH ()-[r]-() WHERE toString(offset(id(r))) = '${detail.id.split(':').pop()}' SET r.\`${key}\` = ${cypherVal}`;
+        // Ladybug 关系 ID 形如 "srcTable:srcOff-Label->dstTable:dstOff"，无法用 offset(id(r))
+        // 改用 source/target/label 重新定位
+        const srcOff = detail.source ? lbugOffset(detail.source) : null;
+        const dstOff = detail.target ? lbugOffset(detail.target) : null;
+        if (!srcOff || !dstOff || !detail.label) {
+          setError(`无法定位关系（缺少 source/target/label）`);
+          setSavingProp(false);
+          return;
+        }
+        updateQuery = `MATCH (a)-[r:\`${detail.label}\`]->(b) WHERE offset(id(a)) = ${srcOff} AND offset(id(b)) = ${dstOff} SET r.\`${key}\` = ${cypherVal}`;
       }
     }
 
@@ -592,7 +709,7 @@ function App() {
       setDetail(prev => prev ? { ...prev, properties: { ...prev.properties, [key]: parsedVal } } : null);
       setEditingProp(null);
     } catch (err: any) {
-      setError(`保存失败: ${err.toString()}`);
+      setError(`保存失败: ${friendlyDbError(err)}`);
     } finally {
       setSavingProp(false);
     }
@@ -604,52 +721,66 @@ function App() {
     setSavingProp(true);
     let updateQuery = "";
     if (detail.type === "node") {
-      updateQuery = dbType === "neo4j"
-        ? `MATCH (n) WHERE elementId(n) = '${detail.id}' OR toString(id(n)) = '${detail.id}' REMOVE n.\`${key}\``
-        : `MATCH (n) WHERE toString(offset(id(n))) = '${detail.id.split(':').pop()}' REMOVE n.\`${key}\``;
+      if (dbType === "neo4j") {
+        updateQuery = `MATCH (n) WHERE elementId(n) = '${detail.id}' OR toString(id(n)) = '${detail.id}' REMOVE n.\`${key}\``;
+      } else {
+        const off = lbugOffset(detail.id);
+        if (off === null) {
+          setError(`无法解析节点 ID: ${detail.id}`);
+          setSavingProp(false);
+          return;
+        }
+        // Ladybug 不支持 REMOVE，使用 SET = null
+        updateQuery = `MATCH (n) WHERE offset(id(n)) = ${off} SET n.\`${key}\` = null`;
+      }
     } else {
-      updateQuery = dbType === "neo4j"
-        ? `MATCH ()-[r]-() WHERE elementId(r) = '${detail.id}' OR toString(id(r)) = '${detail.id}' REMOVE r.\`${key}\``
-        : `MATCH ()-[r]-() WHERE toString(offset(id(r))) = '${detail.id.split(':').pop()}' REMOVE r.\`${key}\``;
+      if (dbType === "neo4j") {
+        updateQuery = `MATCH ()-[r]-() WHERE elementId(r) = '${detail.id}' OR toString(id(r)) = '${detail.id}' REMOVE r.\`${key}\``;
+      } else {
+        const srcOff = detail.source ? lbugOffset(detail.source) : null;
+        const dstOff = detail.target ? lbugOffset(detail.target) : null;
+        if (!srcOff || !dstOff || !detail.label) {
+          setError(`无法定位关系（缺少 source/target/label）`);
+          setSavingProp(false);
+          return;
+        }
+        updateQuery = `MATCH (a)-[r:\`${detail.label}\`]->(b) WHERE offset(id(a)) = ${srcOff} AND offset(id(b)) = ${dstOff} SET r.\`${key}\` = null`;
+      }
     }
     
     try {
       await invoke("execute_cypher", { request: { query: updateQuery } });
+      // Neo4j REMOVE 真正去掉 key；Ladybug SET=null 只把值设为 null，key 仍存在
+      const removeKey = dbType === "neo4j";
+      const applyDelete = (props: Record<string, any>) => {
+        const next = { ...props };
+        if (removeKey) delete next[key]; else next[key] = null;
+        return next;
+      };
       setGraphData(prev => {
         if (detail.type === "node") {
           return {
             ...prev,
-            nodes: prev.nodes.map(n => {
-               if (String(n.id) === String(detail.id)) {
-                 const newProps = { ...n.properties };
-                 delete newProps[key];
-                 return { ...n, properties: newProps };
-               }
-               return n;
-            })
+            nodes: prev.nodes.map(n =>
+              String(n.id) === String(detail.id)
+                ? { ...n, properties: applyDelete(n.properties) }
+                : n
+            )
           };
         } else {
           return {
             ...prev,
-            edges: prev.edges.map(e => {
-               if (String(e.id || `${e.source}-${e.target}`) === String(detail.id)) {
-                 const newProps = { ...e.properties };
-                 delete newProps[key];
-                 return { ...e, properties: newProps };
-               }
-               return e;
-            })
+            edges: prev.edges.map(e =>
+              String(e.id || `${e.source}-${e.target}`) === String(detail.id)
+                ? { ...e, properties: applyDelete(e.properties) }
+                : e
+            )
           };
         }
       });
-      setDetail(prev => {
-        if (!prev) return null;
-        const newProps = { ...prev.properties };
-        delete newProps[key];
-        return { ...prev, properties: newProps };
-      });
+      setDetail(prev => prev ? { ...prev, properties: applyDelete(prev.properties) } : null);
     } catch(err: any) {
-      setError(`删除属性失败: ${err.toString()}`);
+      setError(`删除属性失败: ${friendlyDbError(err)}`);
     } finally {
       setSavingProp(false);
     }
@@ -660,9 +791,19 @@ function App() {
     setSavingProp(true);
     let createQuery = "";
 
-    const propsStr = Object.keys(customProps).length > 0 
-      ? `{${Object.entries(customProps).map(([k, v]) => `\`${k}\`: ${JSON.stringify(v)}`).join(', ')}}`
-      : `{name: 'New Node'}`;
+    // 默认属性：节点附带唯一化的 name 以避开常见的唯一索引冲突；Ladybug 还需补主键
+    const uniqSuffix = Date.now();
+    const needsPk = dbType !== "neo4j" && detail.type === "node" && !("id" in customProps);
+    const defaultNodeProps: Record<string, any> = detail.type === "node"
+      ? (needsPk ? { id: uniqSuffix, name: `New Node ${uniqSuffix}` } : { name: `New Node ${uniqSuffix}` })
+      : {};
+    const effectiveProps = Object.keys(customProps).length > 0
+      ? customProps
+      : defaultNodeProps;
+
+    const propsStr = Object.keys(effectiveProps).length > 0
+      ? toCypherLiteral(effectiveProps)
+      : ``;
 
     if (detail.type === "node") {
       const lbls = labelOrType.split(",").map(s => s.trim()).filter(Boolean);
@@ -676,20 +817,52 @@ function App() {
       const sourceId = detail.source;
       const targetId = detail.target;
       if (dbType === "neo4j") {
-        createQuery = `MATCH (a), (b) WHERE (elementId(a) = '${sourceId}' OR toString(id(a)) = '${sourceId}') AND (elementId(b) = '${targetId}' OR toString(id(b)) = '${targetId}') CREATE (a)-[r:\`${labelOrType}\` ${propsStr}]->(b) RETURN a, r, b`;
+        // 拆成两个 MATCH，避免 (a),(b) 的 N^2 笛卡儿积并让意图更清晰
+        createQuery = `MATCH (a) WHERE elementId(a) = '${sourceId}' OR toString(id(a)) = '${sourceId}' WITH a MATCH (b) WHERE elementId(b) = '${targetId}' OR toString(id(b)) = '${targetId}' CREATE (a)-[r:\`${labelOrType}\` ${propsStr}]->(b) RETURN a, r, b`;
       } else {
-        createQuery = `MATCH (a), (b) WHERE toString(offset(id(a))) = '${sourceId.split(':').pop()}' AND toString(offset(id(b))) = '${targetId.split(':').pop()}' CREATE (a)-[r:\`${labelOrType}\` ${propsStr}]->(b) RETURN a, r, b`;
+        // Ladybug: toString() 不存在；用 offset(id(x)) 整型比较；按 label 约束减少笛卡儿积
+        const srcOffset = lbugOffset(sourceId);
+        const dstOffset = lbugOffset(targetId);
+        if (!srcOffset || !dstOffset) {
+          setError(`无法解析源/目标节点 ID`);
+          setSavingProp(false);
+          return;
+        }
+        const srcNode = graphData.nodes.find(n => String(n.id) === String(sourceId));
+        const dstNode = graphData.nodes.find(n => String(n.id) === String(targetId));
+        const srcLabel = srcNode?.properties?._labels?.[0];
+        const dstLabel = dstNode?.properties?._labels?.[0];
+        const aPart = srcLabel ? `(a:\`${srcLabel}\`)` : `(a)`;
+        const bPart = dstLabel ? `(b:\`${dstLabel}\`)` : `(b)`;
+        // 拆成两个 MATCH，避免 (a), (b) 笛卡儿积扫描
+        createQuery = `MATCH ${aPart} WHERE offset(id(a)) = ${srcOffset} WITH a MATCH ${bPart} WHERE offset(id(b)) = ${dstOffset} CREATE (a)-[r:\`${labelOrType}\` ${propsStr}]->(b) RETURN a, r, b`;
       }
     }
 
     try {
+      console.log("[handleSaveTempEntity] query:", createQuery);
       const result: any = await invoke("execute_cypher", { request: { query: createQuery } });
+      console.log("[handleSaveTempEntity] result:", result);
+
+      // 关系创建：若 MATCH 未命中源/目标，不会报错但也不会有新边，显式提醒用户
+      if (detail.type === "edge" && (!result.edges || result.edges.length === 0)) {
+        setSavingProp(false);
+        setError(`关系创建失败：未能定位源或目标节点 (source=${detail.source}, target=${detail.target})。请确认这些节点仍存在于数据库中。`);
+        return;
+      }
+      // 节点创建：若返回为空，CREATE 实际未成功（例如 Ladybug 没预定义 NODE TABLE）
+      if (detail.type === "node" && (!result.nodes || result.nodes.length === 0)) {
+        setSavingProp(false);
+        setError(`节点创建失败：CREATE 没有返回任何节点。可能是 Ladybug 未预先定义 NODE TABLE（${labelOrType}），或主键属性不匹配。`);
+        return;
+      }
+
       setTempData(prev => ({
         nodes: prev.nodes.filter(n => String(n.id) !== String(detail.id)),
         edges: prev.edges.filter(e => String(e.id) !== String(detail.id))
       }));
       setGraphData(prev => mergeGraphData(prev, result, true));
-      
+
       if (detail.type === "node" && result.nodes?.length > 0) {
         const n = result.nodes[0];
         setDetail({
@@ -712,11 +885,38 @@ function App() {
         setDetail(null);
       }
     } catch (err: any) {
-      setError(err.toString());
+      setError(`创建失败: ${friendlyDbError(err)}`);
     } finally {
       setSavingProp(false);
     }
   };
+
+  // ===== 全库搜索：直接查数据库，将匹配节点合并进画布 =====
+  const handleGlobalSearch = useCallback(async (text: string): Promise<string[]> => {
+    const trimmed = text.trim();
+    if (!trimmed || !connected) return [];
+    const lit = toCypherLiteral(trimmed.toLowerCase());
+
+    let q: string;
+    if (dbType === "neo4j") {
+      // 对常见显示字段做不区分大小写的模糊匹配
+      q = `MATCH (n) WHERE toLower(toString(coalesce(n.name, n.title, n.filename, n.value, n.code, ''))) CONTAINS ${lit} RETURN n LIMIT 100`;
+    } else {
+      // Ladybug：按 name 进行模糊匹配（其余字段因表模式异构不便统一处理）
+      q = `MATCH (n) WHERE LOWER(n.name) CONTAINS ${lit} RETURN n LIMIT 100`;
+    }
+
+    try {
+      const result: any = await invoke("execute_cypher", { request: { query: q } });
+      if (result.nodes?.length > 0) {
+        setGraphData(prev => mergeGraphData(prev, result, true));
+        return result.nodes.map((n: any) => String(n.id));
+      }
+    } catch (err: any) {
+      setError(`全局搜索失败: ${friendlyDbError(err)}`);
+    }
+    return [];
+  }, [connected, dbType, mergeGraphData]);
 
   const handleCancelTempEntity = () => {
     if (!detail || !detail.isTemp) return;
@@ -769,13 +969,75 @@ function App() {
         sidebarWidth={sidebarWidth} handleResizeStart={handleResizeStart} sidebarRef={sidebarRef}
       >
         {activeNav === "database" && (
-          <ConnectView
-            dbType={dbType} setDbType={setDbType} uri={uri} setUri={setUri} user={user} setUser={setUser}
-            password={password} setPassword={setPassword} lbugPath={lbugPath} setLbugPath={setLbugPath}
-            connected={connected} connecting={connecting} connectMsg={connectMsg} handleConnect={handleConnect}
-            databases={databases} selectedDb={selectedDb} setSelectedDb={setSelectedDb} handleDbSwitch={handleDbSwitch}
-            schemaLabels={schemaLabels} schemaRelTypes={schemaRelTypes} schemaProperties={schemaProperties} TAG_COLORS={TAG_COLORS}
-          />
+          <>
+            <ConnectView
+              dbType={dbType} setDbType={setDbType} uri={uri} setUri={setUri} user={user} setUser={setUser}
+              password={password} setPassword={setPassword} lbugPath={lbugPath} setLbugPath={setLbugPath}
+              connected={connected} connecting={connecting} connectMsg={connectMsg} handleConnect={handleConnect}
+              databases={databases} selectedDb={selectedDb} setSelectedDb={setSelectedDb} handleDbSwitch={handleDbSwitch}
+              schemaLabels={schemaLabels} schemaRelTypes={schemaRelTypes} schemaProperties={schemaProperties} TAG_COLORS={TAG_COLORS}
+            />
+            {/* 替换原数据模式概览的图谱概览 */}
+            <div className="form-section schema-section">
+              <div className="form-section-title">图谱概览</div>
+              <div className="overview-section" style={{ marginTop: 10 }}>
+                <div className="overview-row" style={{ marginBottom: 8 }}>
+                  <span className="label" style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-heading)' }}>所有实体 ({schemaStats ? schemaStats.total_nodes : graphData.nodes.length})</span>
+                </div>
+                <div
+                  className="overview-label-row clickable"
+                  onClick={handleOverviewAllNodesClick}
+                  title="点击查询所有实体"
+                  style={{ marginBottom: 4 }}
+                >
+                  <span className="overview-dot" style={{ background: "#cbd5e1" }} />
+                  <span className="overview-label-text">*({schemaStats ? schemaStats.total_nodes : graphData.nodes.length})</span>
+                  <span className="overview-label-name">所有实体</span>
+                </div>
+                {(schemaStats ? schemaStats.labels : Object.entries(labelCounts).map(([name, count]) => ({ name, count }))).map((lbl: any, i: number) => (
+                  <div
+                    key={lbl.name}
+                    className="overview-label-row clickable"
+                    onClick={() => handleOverviewLabelClick(lbl.name)}
+                    title={`点击查询 ${lbl.name} 实体`}
+                    style={{ marginBottom: 4 }}
+                  >
+                    <span className="overview-dot" style={{ background: GRAPH_COLORS[i % GRAPH_COLORS.length] }} />
+                    <span className="overview-label-text">*({lbl.count})</span>
+                    <span className="overview-label-name">{lbl.name} ({lbl.count})</span>
+                  </div>
+                ))}
+              </div>
+              <div className="overview-section" style={{ marginTop: 16 }}>
+                <div className="overview-row" style={{ marginBottom: 8 }}>
+                  <span className="label" style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-heading)' }}>所有关系 ({schemaStats ? schemaStats.total_edges : graphData.edges.length})</span>
+                </div>
+                <div
+                  className="overview-label-row clickable"
+                  onClick={handleOverviewAllRelsClick}
+                  title="点击查询所有关系"
+                  style={{ marginBottom: 4 }}
+                >
+                  <span className="overview-dot" style={{ background: "#94a3b8" }} />
+                  <span className="overview-label-text">*({schemaStats ? schemaStats.total_edges : graphData.edges.length})</span>
+                  <span className="overview-label-name">所有关系</span>
+                </div>
+                {(schemaStats ? schemaStats.rel_types : Object.entries(typeCounts).map(([name, count]) => ({ name, count }))).map((rel: any) => (
+                  <div
+                    key={rel.name}
+                    className="overview-label-row clickable"
+                    onClick={() => handleOverviewRelClick(rel.name)}
+                    title={`点击查询 ${rel.name} 关系`}
+                    style={{ marginBottom: 4 }}
+                  >
+                    <span className="overview-dot" style={{ background: "#94a3b8" }} />
+                    <span className="overview-label-text">*({rel.count})</span>
+                    <span className="overview-label-name">{rel.name} ({rel.count})</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
         )}
         {activeNav === "history" && (
           <HistoryView history={history} setHistory={setHistory} setQuery={setQuery} setActiveNav={setActiveNav} />
@@ -853,6 +1115,7 @@ function App() {
                         onCanvasClick={handleCanvasClick}
                         onNodeRightClick={handleNodeRightClick}
                         onEdgeRightClick={handleEdgeRightClick}
+                        onGlobalSearch={handleGlobalSearch}
                       />
                       <GraphToolbar activeTool={activeTool} setActiveTool={setActiveTool} />
                       {contextMenu && (
@@ -875,62 +1138,6 @@ function App() {
                           </button>
                         </div>
                       )}
-                      {/* 左侧概览面板 - Neo4j 风格 */}
-                      <div className="result-overview">
-                        <h4>图谱概览</h4>
-                        <div className="overview-section">
-                          <div className="overview-row" style={{ marginBottom: 8 }}>
-                            <span className="label">所有实体 ({schemaStats ? schemaStats.total_nodes : graphData.nodes.length})</span>
-                          </div>
-                          <div
-                            className="overview-label-row clickable"
-                            onClick={handleOverviewAllNodesClick}
-                            title="点击查询所有实体"
-                          >
-                            <span className="overview-dot" style={{ background: "#cbd5e1" }} />
-                            <span className="overview-label-text">*({schemaStats ? schemaStats.total_nodes : graphData.nodes.length})</span>
-                            <span className="overview-label-name">所有实体</span>
-                          </div>
-                          {(schemaStats ? schemaStats.labels : Object.entries(labelCounts).map(([name, count]) => ({ name, count }))).map((lbl: any, i: number) => (
-                            <div
-                              key={lbl.name}
-                              className="overview-label-row clickable"
-                              onClick={() => handleOverviewLabelClick(lbl.name)}
-                              title={`点击查询 ${lbl.name} 实体`}
-                            >
-                              <span className="overview-dot" style={{ background: GRAPH_COLORS[i % GRAPH_COLORS.length] }} />
-                              <span className="overview-label-text">*({lbl.count})</span>
-                              <span className="overview-label-name">{lbl.name} ({lbl.count})</span>
-                            </div>
-                          ))}
-                        </div>
-                        <div className="overview-section">
-                          <div className="overview-row" style={{ marginBottom: 8 }}>
-                            <span className="label">所有关系 ({schemaStats ? schemaStats.total_edges : graphData.edges.length})</span>
-                          </div>
-                          <div
-                            className="overview-label-row clickable"
-                            onClick={handleOverviewAllRelsClick}
-                            title="点击查询所有关系"
-                          >
-                            <span className="overview-dot" style={{ background: "#94a3b8" }} />
-                            <span className="overview-label-text">*({schemaStats ? schemaStats.total_edges : graphData.edges.length})</span>
-                            <span className="overview-label-name">所有关系</span>
-                          </div>
-                          {(schemaStats ? schemaStats.rel_types : Object.entries(typeCounts).map(([name, count]) => ({ name, count }))).map((rel: any) => (
-                            <div
-                              key={rel.name}
-                              className="overview-label-row clickable"
-                              onClick={() => handleOverviewRelClick(rel.name)}
-                              title={`点击查询 ${rel.name} 关系`}
-                            >
-                              <span className="overview-dot" style={{ background: "#94a3b8" }} />
-                              <span className="overview-label-text">*({rel.count})</span>
-                              <span className="overview-label-name">{rel.name} ({rel.count})</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
                     </>
                 )}
                 {activeTab === "table" && (

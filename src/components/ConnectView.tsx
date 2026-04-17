@@ -138,43 +138,6 @@ export default function ConnectView({
         </div>
       )}
 
-      <div className="form-section schema-section">
-        <div className="form-section-title">数据模式概览</div>
-        <div style={{ marginBottom: 10 }}>
-          <div className="form-label" style={{ marginBottom: 4 }}>节点标签</div>
-          <div className="tag-list">
-            {schemaLabels.length > 0 ? (
-              schemaLabels.map((label, i) => (
-                <span key={label} className={`tag ${TAG_COLORS[i % TAG_COLORS.length]}`}>{label}</span>
-              ))
-            ) : (
-              <span className="form-hint">连接数据库后显示</span>
-            )}
-          </div>
-        </div>
-        <div style={{ marginBottom: 10 }}>
-          <div className="form-label" style={{ marginBottom: 4 }}>关系类型</div>
-          <div className="tag-list">
-            {schemaRelTypes.length > 0 ? (
-              schemaRelTypes.map((rt) => (
-                <span key={rt} className="tag-mono">{rt}</span>
-              ))
-            ) : (
-              <span className="form-hint">连接数据库后显示</span>
-            )}
-          </div>
-        </div>
-        {schemaProperties.length > 0 && (
-          <div>
-            <div className="form-label" style={{ marginBottom: 4 }}>属性键</div>
-            <div className="tag-list">
-              {schemaProperties.map((pk) => (
-                <span key={pk} className="tag-mono">{pk}</span>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
     </>
   );
 }
