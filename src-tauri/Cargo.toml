@@ -23,10 +23,17 @@ tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["full"] }
-neo4rs = "0.8"
+neo4rs = { version = "0.8", optional = true }
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
-lbug = "0.15.3"
+lbug = { version = "0.15.3", optional = true }
+kuzu = { version = "0.11.3", optional = true }
+
+[features]
+default = ["neo4j", "lbug"]
+neo4j = ["dep:neo4rs"]
+lbug = ["dep:lbug"]
+kuzu = ["dep:kuzu"]
 
 [profile.release]
 panic = "abort"      # 发生 panic 时直接退出，不保留栈展开代码，可减小体积
@@ -39,3 +46,6 @@ strip = true         # 剥离所有调试信息和符号表（非常有效！）
 opt-level = 3
 debug = false
 
+[profile.dev.package.kuzu]
+opt-level = 3
+debug = false

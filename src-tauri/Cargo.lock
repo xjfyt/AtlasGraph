@@ -1588,6 +1588,7 @@ dependencies = [
 name = "graph-visualization"
 version = "0.1.0"
 dependencies = [
+ "kuzu",
  "lbug",
  "neo4rs",
  "serde",
@@ -2154,6 +2155,21 @@ dependencies = [
  "html5ever 0.29.1",
  "indexmap 2.14.0",
  "selectors 0.24.0",
+]
+
+[[package]]
+name = "kuzu"
+version = "0.11.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "06952b00b1a2eabf4caf1426672395f9b1def04207d984af204693dec3da287a"
+dependencies = [
+ "cmake",
+ "cxx",
+ "cxx-build",
+ "rust_decimal",
+ "rustversion",
+ "time",
+ "uuid",
 ]
 
 [[package]]

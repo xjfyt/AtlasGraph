@@ -55,11 +55,22 @@ function App() {
   }, [themeMode]);
 
   // 数据库配置
-  const [dbType, setDbType] = useState<"neo4j" | "lbug">("lbug");
+  const [supportedDbs, setSupportedDbs] = useState<string[]>(["lbug", "neo4j"]);
+  const [dbType, setDbType] = useState<string>("lbug");
   const [uri, setUri] = useState("neo4j://localhost:7687");
   const [user, setUser] = useState("neo4j");
   const [password, setPassword] = useState("mimouse313");
   const [lbugPath, setLbugPath] = useState("./data/db/graph.lbug");
+  const [kuzuPath, setKuzuPath] = useState("./data/db/graph.kuzu");
+
+  useEffect(() => {
+    invoke<string[]>("get_supported_dbs").then(dbs => {
+      setSupportedDbs(dbs);
+      if (dbs.length > 0 && !dbs.includes(dbType)) {
+        setDbType(dbs[0]);
+      }
+    }).catch(console.error);
+  }, []);
 
   // 连接状态
   const [connected, setConnected] = useState(false);
@@ -200,10 +211,12 @@ function App() {
       const msg: any = await invoke("connect_db", {
         request: {
           is_neo4j: dbType === "neo4j",
+          db_type: dbType,
           uri: dbType === "neo4j" ? uri : null,
           user: dbType === "neo4j" ? user : null,
           password: dbType === "neo4j" ? password : null,
           lbug_path: dbType === "lbug" ? lbugPath : null,
+          kuzu_path: dbType === "kuzu" ? kuzuPath : null,
           database: dbType === "neo4j" ? (selectedDb || "neo4j") : "default",
         },
       });
@@ -890,8 +903,8 @@ function App() {
         {activeNav === "database" && (
           <>
             <ConnectView
-              dbType={dbType} setDbType={setDbType} uri={uri} setUri={setUri} user={user} setUser={setUser}
-              password={password} setPassword={setPassword} lbugPath={lbugPath} setLbugPath={setLbugPath}
+              dbType={dbType} setDbType={setDbType} supportedDbs={supportedDbs} uri={uri} setUri={setUri} user={user} setUser={setUser}
+              password={password} setPassword={setPassword} lbugPath={lbugPath} setLbugPath={setLbugPath} kuzuPath={kuzuPath} setKuzuPath={setKuzuPath}
               connected={connected} connecting={connecting} connectMsg={connectMsg} handleConnect={handleConnect}
               databases={databases} selectedDb={selectedDb} setSelectedDb={setSelectedDb} handleDbSwitch={handleDbSwitch}
               schemaLabels={schemaLabels} schemaRelTypes={schemaRelTypes} schemaProperties={schemaProperties} TAG_COLORS={TAG_COLORS}

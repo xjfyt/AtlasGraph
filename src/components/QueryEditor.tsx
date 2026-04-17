@@ -2,7 +2,7 @@ import "./QueryEditor.css";
 import { IconSpinner, IconPlay } from "./icons";
 
 interface QueryEditorProps {
-  dbType: "neo4j" | "lbug";
+  dbType: string;
   selectedDb: string;
   query: string;
   setQuery: (q: string) => void;
@@ -22,7 +22,7 @@ export default function QueryEditor({
     <div className="query-editor">
       <div className="query-body">
         <div className="query-prefix">
-          <span className="query-db-label">{dbType === "neo4j" ? selectedDb : "lbug"}</span>
+          <span className="query-db-label">{dbType === "neo4j" ? selectedDb : dbType}</span>
           <span className="query-prompt">$</span>
         </div>
         <textarea

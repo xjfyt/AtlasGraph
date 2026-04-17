@@ -5,7 +5,7 @@ export interface HeaderProps {
   sidebarCollapsed: boolean;
   setSidebarCollapsed: (v: boolean) => void;
   connected: boolean;
-  dbType: "neo4j" | "lbug";
+  dbType: string;
   uri: string;
   lbugPath: string;
   databases: any[];
@@ -45,7 +45,7 @@ export default function Header({
         )}
       </div>
       <div className="topbar-user">
-        引擎: <span>{dbType === "neo4j" ? "NEO4J" : "Ladybug"}</span>
+        引擎: <span style={{ textTransform: "uppercase" }}>{dbType}</span>
       </div>
     </div>
   );

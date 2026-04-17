@@ -3,6 +3,18 @@ pub mod database;
 use database::{AppState, ConnectRequest, DatabaseInfo, GraphData, QueryRequest, SchemaStats};
 use tauri::State;
 
+#[tauri::command]
+async fn get_supported_dbs() -> Result<Vec<String>, String> {
+    let mut dbs = Vec::new();
+    #[cfg(feature = "neo4j")]
+    dbs.push("neo4j".to_string());
+    #[cfg(feature = "lbug")]
+    dbs.push("lbug".to_string());
+    #[cfg(feature = "kuzu")]
+    dbs.push("kuzu".to_string());
+    Ok(dbs)
+}
+
 // ===== Tauri Commands =====
 
 /// 连接数据库
@@ -66,6 +78,7 @@ pub fn run() {
             execute_cypher,
             show_window,
             get_schema_stats,
+            get_supported_dbs,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
