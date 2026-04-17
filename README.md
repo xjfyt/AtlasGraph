@@ -1,5 +1,7 @@
 # AtlasGraph - 知识图谱可视化工具
 
+[English](README_EN.md) | [中文](README.md)
+
 ---
 
 ## 一、 项目介绍
