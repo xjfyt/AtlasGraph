@@ -1,5 +1,5 @@
 use lbug::{Connection, Database, SystemConfig, Value as LbugValue, NodeVal, RelVal};
-use neo4rs::{ConfigBuilder, Graph, query};
+use neo4rs::{BoltType, ConfigBuilder, Graph, query};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::sync::Arc;
@@ -163,14 +163,24 @@ async fn connect_lbug(state: &AppState, req: &ConnectRequest) -> Result<String, 
         return Err("Ladybug 数据库路径不能为空".into());
     }
 
+    // 先释放已有连接/Database，让 Drop 释放文件锁，避免重复连接同一数据库时报 lock 错误
+    {
+        let mut kd = state.lbug_db.lock().await;
+        *kd = None;
+    }
+    {
+        let mut g = state.neo4j_graph.lock().await;
+        *g = None;
+    }
+    {
+        let mut info = state.connection_info.lock().await;
+        info.connected = false;
+    }
+
     // 建立真实的 Ladybug 连接
     let db = Database::new(path, SystemConfig::default())
         .map_err(|e| format!("Ladybug Database 初始化失败: {}", e))?;
 
-    {
-        let mut g = state.neo4j_graph.lock().await;
-        *g = None; // 清除 neo4j 连接
-    }
     {
         let mut kd = state.lbug_db.lock().await;
         *kd = Some(db);
@@ -290,9 +300,177 @@ pub async fn execute(state: &AppState, cypher: &str) -> Result<GraphData, String
     }
 }
 
+fn is_write_query(cypher: &str) -> bool {
+    let upper = cypher.to_uppercase();
+    ["CREATE", "MERGE", "SET ", "DELETE", "REMOVE", "DETACH"]
+        .iter()
+        .any(|kw| upper.contains(kw))
+}
+
+/// 把 neo4rs 的 BoltType 转成 serde_json::Value（用于把节点/边属性暴露给前端）。
+/// 没有 catch-all 类型在 BoltType 上，所以这里穷举枚举的所有变体。
+fn bolt_to_json(bt: &BoltType) -> Value {
+    match bt {
+        BoltType::Null(_) => Value::Null,
+        BoltType::Boolean(b) => json!(b.value),
+        BoltType::Integer(i) => json!(i.value),
+        BoltType::Float(f) => json!(f.value),
+        BoltType::String(s) => Value::String(s.value.clone()),
+        BoltType::List(l) => Value::Array(l.value.iter().map(bolt_to_json).collect()),
+        BoltType::Map(m) => {
+            let mut obj = serde_json::Map::new();
+            for (k, v) in &m.value {
+                obj.insert(k.value.clone(), bolt_to_json(v));
+            }
+            Value::Object(obj)
+        }
+        BoltType::Bytes(b) => json!(b.value.iter().copied().collect::<Vec<u8>>()),
+        // 时间/几何/复合类型：转字符串展示，避免数据丢失
+        other => Value::String(format!("{:?}", other)),
+    }
+}
+
+fn extract_neo4j_node(node: &neo4rs::Node) -> GraphNode {
+    let mut props = serde_json::Map::new();
+    for key in node.keys() {
+        if let Ok(bt) = node.get::<BoltType>(&key) {
+            props.insert(key.to_string(), bolt_to_json(&bt));
+        }
+    }
+    props.insert("_labels".to_string(), json!(node.labels().to_vec()));
+    GraphNode { id: node.id().to_string(), properties: Value::Object(props) }
+}
+
+fn extract_neo4j_rel_props(rel: &neo4rs::Relation) -> Value {
+    let mut props = serde_json::Map::new();
+    for key in rel.keys() {
+        if let Ok(bt) = rel.get::<BoltType>(&key) {
+            props.insert(key.to_string(), bolt_to_json(&bt));
+        }
+    }
+    Value::Object(props)
+}
+
+fn extract_neo4j_path_rel_props(rel: &neo4rs::UnboundedRelation) -> Value {
+    let mut props = serde_json::Map::new();
+    for key in rel.keys() {
+        if let Ok(bt) = rel.get::<BoltType>(&key) {
+            props.insert(key.to_string(), bolt_to_json(&bt));
+        }
+    }
+    Value::Object(props)
+}
+
+fn process_neo4j_row(
+    row: &neo4rs::Row,
+    aliases: &[String],
+    nodes: &mut Vec<GraphNode>,
+    edges: &mut Vec<GraphEdge>,
+    seen_node_ids: &mut std::collections::HashSet<String>,
+    seen_edge_ids: &mut std::collections::HashSet<String>,
+) {
+    for col in aliases {
+        if let Ok(node) = row.get::<neo4rs::Node>(col) {
+            let id_val = node.id().to_string();
+            if seen_node_ids.insert(id_val.clone()) {
+                nodes.push(extract_neo4j_node(&node));
+            }
+        }
+
+        if let Ok(rel) = row.get::<neo4rs::Relation>(col) {
+            let rel_id = rel.id().to_string();
+            if seen_edge_ids.insert(rel_id.clone()) {
+                edges.push(GraphEdge {
+                    id: rel_id,
+                    source: rel.start_node_id().to_string(),
+                    target: rel.end_node_id().to_string(),
+                    label: rel.typ().to_string(),
+                    properties: extract_neo4j_rel_props(&rel),
+                });
+            }
+        }
+
+        // UnboundedRelation 没有起止节点 ID，渲染层会因 from/to 为空而崩溃 -> 直接跳过
+        // 完整的 Relation/Path 路径会单独处理
+
+        if let Ok(path) = row.get::<neo4rs::Path>(col) {
+            let path_nodes = path.nodes();
+            let path_rels = path.rels();
+            for node in &path_nodes {
+                let id_val = node.id().to_string();
+                if seen_node_ids.insert(id_val.clone()) {
+                    nodes.push(extract_neo4j_node(node));
+                }
+            }
+            for (i, rel) in path_rels.iter().enumerate() {
+                let rel_id = rel.id().to_string();
+                // 必须能在 path_nodes 中找到两端节点；否则跳过，避免推送 source/target 为空的边
+                if i >= path_nodes.len() || i + 1 >= path_nodes.len() {
+                    continue;
+                }
+                if seen_edge_ids.insert(rel_id.clone()) {
+                    edges.push(GraphEdge {
+                        id: rel_id,
+                        source: path_nodes[i].id().to_string(),
+                        target: path_nodes[i + 1].id().to_string(),
+                        label: rel.typ().to_string(),
+                        properties: extract_neo4j_path_rel_props(rel),
+                    });
+                }
+            }
+        }
+    }
+}
+
+async fn execute_neo4j_write(graph: &Graph, cypher: &str) -> Result<GraphData, String> {
+    let mut txn = graph
+        .start_txn()
+        .await
+        .map_err(|e| format!("开启事务失败: {}", e))?;
+
+    let mut nodes: Vec<GraphNode> = Vec::new();
+    let mut edges: Vec<GraphEdge> = Vec::new();
+    let mut seen_node_ids = std::collections::HashSet::new();
+    let mut seen_edge_ids = std::collections::HashSet::new();
+    let aliases = extract_return_aliases(cypher);
+
+    {
+        let mut stream = txn
+            .execute(query(cypher))
+            .await
+            .map_err(|e| format!("查询执行失败: {}", e))?;
+
+        loop {
+            match stream.next(txn.handle()).await {
+                Ok(Some(row)) => process_neo4j_row(
+                    &row, &aliases,
+                    &mut nodes, &mut edges,
+                    &mut seen_node_ids, &mut seen_edge_ids,
+                ),
+                Ok(None) => break,
+                Err(e) => {
+                    let _ = txn.rollback().await;
+                    return Err(format!("查询执行失败: {}", e));
+                }
+            }
+        }
+    }
+
+    txn.commit()
+        .await
+        .map_err(|e| format!("提交事务失败: {}", e))?;
+
+    Ok(GraphData { nodes, edges })
+}
+
 async fn execute_neo4j(state: &AppState, cypher: &str) -> Result<GraphData, String> {
     let graph_lock = state.neo4j_graph.lock().await;
     let graph = graph_lock.as_ref().ok_or("Neo4j 连接已断开，请重新连接")?;
+
+    // 写操作显式使用事务 + commit，避免某些情况下自动提交不生效
+    if is_write_query(cypher) {
+        return execute_neo4j_write(graph, cypher).await;
+    }
 
     let mut result = graph
         .execute(query(cypher))
@@ -303,158 +481,14 @@ async fn execute_neo4j(state: &AppState, cypher: &str) -> Result<GraphData, Stri
     let mut edges: Vec<GraphEdge> = Vec::new();
     let mut seen_node_ids = std::collections::HashSet::new();
     let mut seen_edge_ids = std::collections::HashSet::new();
+    let aliases = extract_return_aliases(cypher);
 
     while let Ok(Some(row)) = result.next().await {
-        // 从查询的 RETURN 子句中推断可能的变量名
-        // 同时尝试常见别名 a-z, n, m, p, r, rel, src, dst, node, edge 等
-        let aliases = extract_return_aliases(cypher);
-        for col in &aliases {
-            // 尝试提取为 Node
-            if let Ok(node) = row.get::<neo4rs::Node>(col) {
-                let id_val = node.id().to_string();
-                if seen_node_ids.insert(id_val.clone()) {
-                    let labels = node.labels().to_vec();
-                    let mut props = serde_json::Map::new();
-
-                    // 提取节点的所有 key
-                    for key in node.keys() {
-                        if let Ok(val) = node.get::<String>(&key) {
-                            props.insert(key.to_string(), Value::String(val));
-                        } else if let Ok(val) = node.get::<i64>(&key) {
-                            props.insert(key.to_string(), json!(val));
-                        } else if let Ok(val) = node.get::<f64>(&key) {
-                            props.insert(key.to_string(), json!(val));
-                        } else if let Ok(val) = node.get::<bool>(&key) {
-                            props.insert(key.to_string(), json!(val));
-                        }
-                    }
-
-                    // 增加 _labels 便于前端使用
-                    props.insert("_labels".to_string(), json!(labels));
-
-                    nodes.push(GraphNode {
-                        id: id_val,
-                        properties: Value::Object(props),
-                    });
-                }
-            }
-
-            // 尝试提取为 Relation
-            if let Ok(rel) = row.get::<neo4rs::Relation>(col) {
-                let rel_id = rel.id().to_string();
-                if seen_edge_ids.insert(rel_id.clone()) {
-                    let rel_type = rel.typ().to_string();
-                    let start_id = rel.start_node_id().to_string();
-                    let end_id = rel.end_node_id().to_string();
-
-                    let mut props = serde_json::Map::new();
-                    for key in rel.keys() {
-                        if let Ok(val) = rel.get::<String>(&key) {
-                            props.insert(key.to_string(), Value::String(val));
-                        } else if let Ok(val) = rel.get::<i64>(&key) {
-                            props.insert(key.to_string(), json!(val));
-                        } else if let Ok(val) = rel.get::<f64>(&key) {
-                            props.insert(key.to_string(), json!(val));
-                        } else if let Ok(val) = rel.get::<bool>(&key) {
-                            props.insert(key.to_string(), json!(val));
-                        }
-                    }
-
-                    edges.push(GraphEdge {
-                        id: rel_id,
-                        source: start_id,
-                        target: end_id,
-                        label: rel_type,
-                        properties: Value::Object(props),
-                    });
-                }
-            }
-
-            // 尝试提取为 UnboundedRelation (MATCH path 返回的)
-            if let Ok(rel) = row.get::<neo4rs::UnboundedRelation>(col) {
-                let rel_id = rel.id().to_string();
-                if seen_edge_ids.insert(rel_id.clone()) {
-                    let rel_type = rel.typ().to_string();
-
-                    let mut props = serde_json::Map::new();
-                    for key in rel.keys() {
-                        if let Ok(val) = rel.get::<String>(&key) {
-                            props.insert(key.to_string(), Value::String(val));
-                        } else if let Ok(val) = rel.get::<i64>(&key) {
-                            props.insert(key.to_string(), json!(val));
-                        }
-                    }
-
-                    edges.push(GraphEdge {
-                        id: rel_id,
-                        source: "".into(),
-                        target: "".into(),
-                        label: rel_type,
-                        properties: Value::Object(props),
-                    });
-                }
-            }
-
-            // 尝试提取为 Path (MATCH p=()-[]->() RETURN p 返回的)
-            if let Ok(path) = row.get::<neo4rs::Path>(col) {
-                let path_nodes = path.nodes();
-                let path_rels = path.rels();
-
-                for node in &path_nodes {
-                    let id_val = node.id().to_string();
-                    if seen_node_ids.insert(id_val.clone()) {
-                        let labels = node.labels().to_vec();
-                        let mut props = serde_json::Map::new();
-                        for key in node.keys() {
-                            if let Ok(val) = node.get::<String>(&key) {
-                                props.insert(key.to_string(), Value::String(val));
-                            } else if let Ok(val) = node.get::<i64>(&key) {
-                                props.insert(key.to_string(), json!(val));
-                            } else if let Ok(val) = node.get::<f64>(&key) {
-                                props.insert(key.to_string(), json!(val));
-                            } else if let Ok(val) = node.get::<bool>(&key) {
-                                props.insert(key.to_string(), json!(val));
-                            }
-                        }
-                        props.insert("_labels".to_string(), json!(labels));
-                        nodes.push(GraphNode {
-                            id: id_val,
-                            properties: Value::Object(props),
-                        });
-                    }
-                }
-
-                for (i, rel) in path_rels.iter().enumerate() {
-                    let rel_id = rel.id().to_string();
-                    if seen_edge_ids.insert(rel_id.clone()) {
-                        let rel_type = rel.typ().to_string();
-                        let source = if i < path_nodes.len() { path_nodes[i].id().to_string() } else { "".into() };
-                        let target = if i + 1 < path_nodes.len() { path_nodes[i + 1].id().to_string() } else { "".into() };
-
-                        let mut props = serde_json::Map::new();
-                        for key in rel.keys() {
-                            if let Ok(val) = rel.get::<String>(&key) {
-                                props.insert(key.to_string(), Value::String(val));
-                            } else if let Ok(val) = rel.get::<i64>(&key) {
-                                props.insert(key.to_string(), json!(val));
-                            } else if let Ok(val) = rel.get::<f64>(&key) {
-                                props.insert(key.to_string(), json!(val));
-                            } else if let Ok(val) = rel.get::<bool>(&key) {
-                                props.insert(key.to_string(), json!(val));
-                            }
-                        }
-
-                        edges.push(GraphEdge {
-                            id: rel_id,
-                            source,
-                            target,
-                            label: rel_type,
-                            properties: Value::Object(props),
-                        });
-                    }
-                }
-            }
-        }
+        process_neo4j_row(
+            &row, &aliases,
+            &mut nodes, &mut edges,
+            &mut seen_node_ids, &mut seen_edge_ids,
+        );
     }
 
     Ok(GraphData { nodes, edges })
@@ -463,18 +497,16 @@ async fn execute_neo4j(state: &AppState, cypher: &str) -> Result<GraphData, Stri
 /// 从 Cypher 查询的 RETURN 子句中提取变量别名
 /// 例如 "MATCH (a)-[r]->(b) RETURN a, r, b LIMIT 10" => ["a", "r", "b"]
 fn extract_return_aliases(cypher: &str) -> Vec<String> {
-    let upper = cypher.to_uppercase();
     let mut aliases = Vec::new();
 
-    // 找到 RETURN 关键字后的部分
-    if let Some(pos) = upper.find("RETURN") {
+    // 用单词边界查找 RETURN，避免匹配到 returnedValue 等变量名内的子串
+    let return_pos = find_keyword_pos(cypher, "RETURN");
+    if let Some(pos) = return_pos {
         let after_return = &cypher[pos + 6..];
-        // 截取到 LIMIT / ORDER BY / SKIP 等关键字之前
-        let end_keywords = ["LIMIT", "ORDER", "SKIP", "UNION"];
-        let after_upper = after_return.to_uppercase();
+        // 截取到 LIMIT / ORDER / SKIP / UNION 关键字之前（同样要单词边界）
         let mut end_pos = after_return.len();
-        for kw in &end_keywords {
-            if let Some(p) = after_upper.find(kw) {
+        for kw in ["LIMIT", "ORDER", "SKIP", "UNION"] {
+            if let Some(p) = find_keyword_pos(after_return, kw) {
                 if p < end_pos {
                     end_pos = p;
                 }
@@ -482,20 +514,16 @@ fn extract_return_aliases(cypher: &str) -> Vec<String> {
         }
         let return_clause = &after_return[..end_pos];
 
-        // 按逗号分割
+        // 按逗号分割（注意：括号内的逗号也会被切割，对常见 RETURN a,r,b 足够；高级用法可能需要更复杂的解析）
         for part in return_clause.split(',') {
             let trimmed = part.trim();
             // 处理 "expr AS alias" 的情况
             let alias = if let Some(as_pos) = trimmed.to_uppercase().rfind(" AS ") {
                 trimmed[as_pos + 4..].trim()
             } else {
-                // 取最简单的变量名（去掉属性访问如 a.name）
-                let dot_pos = trimmed.find('.');
-                if let Some(dp) = dot_pos {
-                    &trimmed[..dp]
-                } else {
-                    trimmed
-                }
+                // 取最简单的变量名（去掉属性访问如 a.name 或函数 count(n)）
+                let cut = trimmed.find(|c: char| c == '.' || c == '(' || c.is_whitespace());
+                if let Some(p) = cut { &trimmed[..p] } else { trimmed }
             };
 
             let clean = alias.trim().to_string();
@@ -512,6 +540,31 @@ fn extract_return_aliases(cypher: &str) -> Vec<String> {
     }
 
     aliases
+}
+
+/// 在文本中查找关键字（不区分大小写，且必须有单词边界），返回首次出现的字节位置。
+/// 避免把 `RETURN` 匹配到 `returnedValue`、把 `LIMIT` 匹配到 `LIMITED` 等情况。
+fn find_keyword_pos(haystack: &str, keyword: &str) -> Option<usize> {
+    let upper = haystack.to_uppercase();
+    let kw = keyword.to_uppercase();
+    let kw_len = kw.len();
+    let bytes = upper.as_bytes();
+    let mut start = 0;
+    while let Some(idx) = upper[start..].find(&kw) {
+        let abs = start + idx;
+        let before_ok = abs == 0 || !is_ident_byte(bytes[abs - 1]);
+        let after_idx = abs + kw_len;
+        let after_ok = after_idx >= bytes.len() || !is_ident_byte(bytes[after_idx]);
+        if before_ok && after_ok {
+            return Some(abs);
+        }
+        start = abs + 1;
+    }
+    None
+}
+
+fn is_ident_byte(b: u8) -> bool {
+    b.is_ascii_alphanumeric() || b == b'_'
 }
 
 /// 转换 Ladybug Value 为 Json
@@ -558,11 +611,15 @@ fn extract_lbug_rel(rel: &RelVal) -> GraphEdge {
         props.insert(k.clone(), lbug_val_to_json(v));
     }
 
+    let src = rel.get_src_node();
+    let dst = rel.get_dst_node();
+    let label = rel.get_label_name();
     GraphEdge {
-        id: format!("{}:{}-{}", rel.get_src_node().table_id, rel.get_src_node().offset, rel.get_dst_node().offset),
-        source: format!("{}:{}", rel.get_src_node().table_id, rel.get_src_node().offset),
-        target: format!("{}:{}", rel.get_dst_node().table_id, rel.get_dst_node().offset),
-        label: rel.get_label_name().to_string(),
+        // 旧格式 "srcTable:srcOff-dstOff" 缺少 dst_table_id 与 label，多重边/异表边会冲突
+        id: format!("{}:{}-{}->{}:{}", src.table_id, src.offset, label, dst.table_id, dst.offset),
+        source: format!("{}:{}", src.table_id, src.offset),
+        target: format!("{}:{}", dst.table_id, dst.offset),
+        label: label.to_string(),
         properties: Value::Object(props),
     }
 }
@@ -573,15 +630,30 @@ async fn execute_lbug(state: &AppState, cypher: &str) -> Result<GraphData, Strin
     let db = db_lock.as_ref().ok_or("Ladybug 连接不存在")?;
     let conn = Connection::new(db).map_err(|e| format!("初始化连接失败: {}", e))?;
 
+    eprintln!("[lbug] query: {}", cypher);
     let result = conn.query(cypher)
-        .map_err(|e| format!("Ladybug 查询执行失败: {}", e))?;
+        .map_err(|e| {
+            eprintln!("[lbug] query failed: {}", e);
+            format!("Ladybug 查询执行失败: {}", e)
+        })?;
 
     let mut nodes: std::collections::HashMap<String, GraphNode> = std::collections::HashMap::new();
     let mut edges: std::collections::HashMap<String, GraphEdge> = std::collections::HashMap::new();
+    let mut row_count = 0usize;
 
     for row in result {
+        row_count += 1;
         for val in row {
             traverse_lbug_value(&val, &mut nodes, &mut edges);
+        }
+    }
+    eprintln!("[lbug] rows={}, nodes={}, edges={}", row_count, nodes.len(), edges.len());
+
+    // 写操作后显式 CHECKPOINT，确保 WAL 落盘到主数据库文件
+    if is_write_query(cypher) {
+        match conn.query("CHECKPOINT;") {
+            Ok(_) => eprintln!("[lbug] checkpoint ok"),
+            Err(e) => eprintln!("[lbug] checkpoint warn: {}", e),
         }
     }
 
