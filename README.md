@@ -7,7 +7,7 @@
 
 ## 🎯 核心功能
 
-- **双引擎全真连接**：支持高速直连 **Neo4j**（远程协议）或 **Kuzu**（本地嵌入式引擎，支持本地文件选取）。
+- **双引擎全真连接**：支持高速直连 **Neo4j**（远程协议）或 **Ladybug**（本地嵌入式引擎，支持本地文件选取）。
 - **生产级编辑闭环 (CRUD)**：
   - **右键上下文菜单**：在画布空白处右键快速创建新节点；对节点/边右键进行连线、隐藏、解绑，以及执行基于 Cypher 的底层**持久化删除**（Detach Delete）。
   - **交互式牵拉连线**：选中节点后可通过右键选项快速牵拉至周边节点，建立并命名全新的关系（Relationship）。
@@ -26,7 +26,7 @@
 | Node.js | v18+ | [nodejs.org](https://nodejs.org/) |
 | Rust & Cargo | latest stable | [rustup.rs](https://rustup.rs/) |
 | Visual Studio Build Tools | 2019+ | [VS Installer](https://visualstudio.microsoft.com/downloads/) (勾选 "C++ 桌面开发") |
-| CMake + Ninja | | 用于本地编译编译 Kuzu 依赖库 |
+| CMake + Ninja | | 用于本地编译 Ladybug 依赖库 |
 
 > **验证安装**：在终端执行 `node -v`、`npm -v`、`rustc --version`，确认均有版本输出。
 
@@ -47,12 +47,12 @@ npm install
 npm run tauri dev
 ```
 
-> **注意：** 当首次编译包含 `kuzu` 的 Rust 后端依赖时可能较长，后续启动将会达到秒开速度。遇到 `Ctrl+C` 中断等情况请先检查任务环境是否结束，使用 `clear` 清理后重试。
+> **注意：** 当首次编译包含 `lbug` 的 Rust 后端依赖时可能较长（约 15–20 分钟），后续启动将会达到秒开速度。遇到 `Ctrl+C` 中断等情况请先检查任务环境是否结束，使用 `clear` 清理后重试。
 
 ### 3. 主干使用流
 
 1. 启动应用后，左侧边栏即是**工作引擎面板**，选择您对应的图数据库：
-   - 如果使用 **Kuzu**：点击右侧📁按钮直接选取本地数据库文件夹或 `.kuzu` 数据库文件。
+   - 如果使用 **Ladybug**：点击右侧📁按钮直接选取本地 `.lbug` 数据库文件。
    - 如果使用 **Neo4j**：填入对应的 `bolt://` URI 及账号密码。
 2. 点击 **连接**。
 3. 界面右侧或下方的主键盘区是 **Cypher 查询编辑器**：
@@ -97,7 +97,7 @@ graph-visualization/
 │   ├── src/
 │   │   ├── main.rs            
 │   │   ├── lib.rs             # Tauri APIs 注册与生命周期管理
-│   │   └── database.rs        # 多协议池切换 (neo4j vs kuzu 路由)
+│   │   └── database.rs        # 多协议池切换 (neo4j vs lbug 路由)
 │   └── Cargo.toml
 └── README.md
 ```

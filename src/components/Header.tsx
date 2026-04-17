@@ -4,16 +4,16 @@ export interface HeaderProps {
   sidebarCollapsed: boolean;
   setSidebarCollapsed: (v: boolean) => void;
   connected: boolean;
-  dbType: "neo4j" | "kuzu";
+  dbType: "neo4j" | "lbug";
   uri: string;
-  kuzuPath: string;
+  lbugPath: string;
   databases: any[];
   selectedDb: string;
   user: string;
 }
 
 export default function Header({
-  sidebarCollapsed, setSidebarCollapsed, connected, dbType, uri, kuzuPath, databases, selectedDb, user
+  sidebarCollapsed, setSidebarCollapsed, connected, dbType, uri, lbugPath, databases, selectedDb, user
 }: HeaderProps) {
   return (
     <div className="topbar">
@@ -27,7 +27,7 @@ export default function Header({
           <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Instance:</span>
           <div className={`status-dot ${connected ? "connected" : "disconnected"}`} />
           <span style={{ fontFamily: "'SF Mono','Consolas',monospace", fontSize: 12 }}>
-            {dbType === "neo4j" ? uri : kuzuPath}
+            {dbType === "neo4j" ? uri : lbugPath}
           </span>
         </div>
         {connected && databases.length > 0 && (
@@ -44,7 +44,7 @@ export default function Header({
         )}
       </div>
       <div className="topbar-user">
-        引擎: <span>{dbType.toUpperCase()}</span>
+        引擎: <span>{dbType === "neo4j" ? "NEO4J" : "Ladybug"}</span>
       </div>
     </div>
   );

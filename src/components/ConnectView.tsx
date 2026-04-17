@@ -2,12 +2,12 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { IconFolderOpen, IconSpinner, IconPlug } from "./icons";
 
 export interface ConnectViewProps {
-  dbType: "neo4j" | "kuzu";
-  setDbType: (v: "neo4j" | "kuzu") => void;
+  dbType: "neo4j" | "lbug";
+  setDbType: (v: "neo4j" | "lbug") => void;
   uri: string; setUri: (v: string) => void;
   user: string; setUser: (v: string) => void;
   password: string; setPassword: (v: string) => void;
-  kuzuPath: string; setKuzuPath: (v: string) => void;
+  lbugPath: string; setLbugPath: (v: string) => void;
   connected: boolean;
   connecting: boolean;
   connectMsg: { ok: boolean; text: string } | null;
@@ -23,7 +23,7 @@ export interface ConnectViewProps {
 
 export default function ConnectView({
   dbType, setDbType, uri, setUri, user, setUser, password, setPassword,
-  kuzuPath, setKuzuPath, connected, connecting, connectMsg, handleConnect,
+  lbugPath, setLbugPath, connected, connecting, connectMsg, handleConnect,
   databases, selectedDb, setSelectedDb, handleDbSwitch, schemaLabels, schemaRelTypes, schemaProperties, TAG_COLORS
 }: ConnectViewProps) {
   return (
@@ -31,8 +31,8 @@ export default function ConnectView({
       <div className="form-section">
         <div className="form-section-title">连接引擎</div>
         <div className="engine-toggle">
-          <button className={dbType === "kuzu" ? "active" : ""} onClick={() => setDbType("kuzu")}>
-            Kuzu (本地)
+          <button className={dbType === "lbug" ? "active" : ""} onClick={() => setDbType("lbug")}>
+            Ladybug (本地)
           </button>
           <button className={dbType === "neo4j" ? "active" : ""} onClick={() => setDbType("neo4j")}>
             Neo4j (远程)
@@ -64,33 +64,33 @@ export default function ConnectView({
           </>
         ) : (
           <div className="form-group">
-            <label className="form-label">Kuzu 数据库路径</label>
+            <label className="form-label">Ladybug 数据库路径</label>
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
               <input
                 className="form-input"
                 type="text"
-                value={kuzuPath}
+                value={lbugPath}
                 onChange={(e) => {
                   let val = e.target.value.trim();
                   val = val.replace(/^["']+|["']+$/g, '');
-                  setKuzuPath(val);
+                  setLbugPath(val);
                 }}
                 placeholder="./data/db"
                 style={{ flex: 1, minWidth: 0, padding: "8px 12px" }}
               />
               <button
                 className="icon-btn"
-                title="选择本地 Kuzu 数据库目录"
+                title="选择本地 Ladybug 数据库文件"
                 style={{ width: '35px', height: '35px', flexShrink: 0, border: '1px solid var(--border)', background: 'var(--bg-primary)' }}
                 onClick={async () => {
                   try {
                     const selected = await open({
                       directory: false,
                       multiple: false,
-                      filters: [{ name: 'Kuzu Database', extensions: ['kuzu', 'kz', 'db'] }, { name: 'All Files', extensions: ['*'] }]
+                      filters: [{ name: 'Ladybug Database', extensions: ['lbug', 'db'] }, { name: 'All Files', extensions: ['*'] }]
                     });
                     if (selected && !Array.isArray(selected)) {
-                      setKuzuPath(selected);
+                      setLbugPath(selected);
                     }
                   } catch (err) {
                     console.error(err);
@@ -100,7 +100,7 @@ export default function ConnectView({
                 <IconFolderOpen />
               </button>
             </div>
-            <div className="form-hint">指定本地 Kuzu 数据库文件的路径</div>
+            <div className="form-hint">指定本地 Ladybug 数据库文件的路径</div>
           </div>
         )}
 

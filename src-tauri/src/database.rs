@@ -1,4 +1,4 @@
-use kuzu::{Connection, Database, SystemConfig, Value as KuzuValue, NodeVal, RelVal};
+use lbug::{Connection, Database, SystemConfig, Value as LbugValue, NodeVal, RelVal};
 use neo4rs::{ConfigBuilder, Graph, query};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -13,7 +13,7 @@ pub struct ConnectRequest {
     pub uri: Option<String>,
     pub user: Option<String>,
     pub password: Option<String>,
-    pub kuzu_path: Option<String>,
+    pub lbug_path: Option<String>,
     pub database: Option<String>, // 指定数据库名称
 }
 
@@ -68,7 +68,7 @@ pub struct ItemCount {
 
 pub struct AppState {
     pub neo4j_graph: Arc<Mutex<Option<Graph>>>,
-    pub kuzu_db: Arc<Mutex<Option<Database>>>,
+    pub lbug_db: Arc<Mutex<Option<Database>>>,
     pub connection_info: Arc<Mutex<ConnectionInfo>>,
 }
 
@@ -79,14 +79,14 @@ pub struct ConnectionInfo {
     pub uri: String,
     pub user: String,
     pub database: String,
-    pub kuzu_path: String,
+    pub lbug_path: String,
 }
 
 impl AppState {
     pub fn new() -> Self {
         Self {
             neo4j_graph: Arc::new(Mutex::new(None)),
-            kuzu_db: Arc::new(Mutex::new(None)),
+            lbug_db: Arc::new(Mutex::new(None)),
             connection_info: Arc::new(Mutex::new(ConnectionInfo::default())),
         }
     }
@@ -98,7 +98,7 @@ pub async fn connect(state: &AppState, req: &ConnectRequest) -> Result<String, S
     if req.is_neo4j {
         connect_neo4j(state, req).await
     } else {
-        connect_kuzu(state, req).await
+        connect_lbug(state, req).await
     }
 }
 
@@ -157,42 +157,42 @@ async fn connect_neo4j(state: &AppState, req: &ConnectRequest) -> Result<String,
     Ok(format!("已成功连接到 Neo4j ({}@{})", database, uri))
 }
 
-async fn connect_kuzu(state: &AppState, req: &ConnectRequest) -> Result<String, String> {
-    let path = req.kuzu_path.as_deref().unwrap_or("").trim();
+async fn connect_lbug(state: &AppState, req: &ConnectRequest) -> Result<String, String> {
+    let path = req.lbug_path.as_deref().unwrap_or("").trim();
     if path.is_empty() {
-        return Err("Kuzu 数据库路径不能为空".into());
+        return Err("Ladybug 数据库路径不能为空".into());
     }
 
-    // 建立真实的 Kuzu 连接
+    // 建立真实的 Ladybug 连接
     let db = Database::new(path, SystemConfig::default())
-        .map_err(|e| format!("Kuzu Database 初始化失败: {}", e))?;
+        .map_err(|e| format!("Ladybug Database 初始化失败: {}", e))?;
 
     {
         let mut g = state.neo4j_graph.lock().await;
         *g = None; // 清除 neo4j 连接
     }
     {
-        let mut kd = state.kuzu_db.lock().await;
+        let mut kd = state.lbug_db.lock().await;
         *kd = Some(db);
     }
     {
         let mut info = state.connection_info.lock().await;
         info.is_neo4j = false;
         info.connected = true;
-        info.kuzu_path = path.to_string();
+        info.lbug_path = path.to_string();
         info.database = "default".to_string();
     }
 
     // 简单的连接验证
     {
-        let db_lock = state.kuzu_db.lock().await;
+        let db_lock = state.lbug_db.lock().await;
         if let Some(db_ref) = db_lock.as_ref() {
             let conn = Connection::new(db_ref).map_err(|e| format!("无法创建验证连接: {}", e))?;
             conn.query("MATCH (n) RETURN n LIMIT 1").map_err(|e| format!("连接验证失败: {}", e))?;
         }
     }
 
-    Ok(format!("已成功连接到 Kuzu: {}", path))
+    Ok(format!("已成功连接到 Ladybug: {}", path))
 }
 
 // ===== 列出数据库 =====
@@ -242,7 +242,7 @@ pub async fn list_databases(state: &AppState) -> Result<Vec<DatabaseInfo>, Strin
 
         Ok(databases)
     } else {
-        // Kuzu 只有一个默认数据库
+        // Ladybug 只有一个默认数据库
         Ok(vec![DatabaseInfo {
             name: "default".into(),
             is_default: true,
@@ -270,7 +270,7 @@ pub async fn switch_database(state: &AppState, db_name: &str) -> Result<String, 
 
         Ok(format!("已切换到数据库: {}", db_name))
     } else {
-        Ok("Kuzu 仅支持单数据库".into())
+        Ok("Ladybug 仅支持单数据库".into())
     }
 }
 
@@ -286,7 +286,7 @@ pub async fn execute(state: &AppState, cypher: &str) -> Result<GraphData, String
     if info.is_neo4j {
         execute_neo4j(state, cypher).await
     } else {
-        execute_kuzu(state, cypher).await
+        execute_lbug(state, cypher).await
     }
 }
 
@@ -514,34 +514,34 @@ fn extract_return_aliases(cypher: &str) -> Vec<String> {
     aliases
 }
 
-/// 转换 Kuzu Value 为 Json
-fn kuzu_val_to_json(val: &KuzuValue) -> Value {
+/// 转换 Ladybug Value 为 Json
+fn lbug_val_to_json(val: &LbugValue) -> Value {
     match val {
-        KuzuValue::Bool(b) => json!(b),
-        KuzuValue::Int64(i) => json!(i),
-        KuzuValue::Int32(i) => json!(i),
-        KuzuValue::Int16(i) => json!(i),
-        KuzuValue::Int8(i) => json!(i),
-        KuzuValue::UInt64(i) => json!(i),
-        KuzuValue::UInt32(i) => json!(i),
-        KuzuValue::UInt16(i) => json!(i),
-        KuzuValue::UInt8(i) => json!(i),
-        KuzuValue::Double(d) => json!(d),
-        KuzuValue::Float(f) => json!(f),
-        KuzuValue::String(s) => Value::String(s.clone()),
-        KuzuValue::Date(d) => Value::String(d.to_string()),
-        KuzuValue::Timestamp(t) => Value::String(t.to_string()),
-        KuzuValue::Interval(i) => Value::String(i.to_string()),
-        KuzuValue::List(_, l) => Value::Array(l.iter().map(kuzu_val_to_json).collect()),
+        LbugValue::Bool(b) => json!(b),
+        LbugValue::Int64(i) => json!(i),
+        LbugValue::Int32(i) => json!(i),
+        LbugValue::Int16(i) => json!(i),
+        LbugValue::Int8(i) => json!(i),
+        LbugValue::UInt64(i) => json!(i),
+        LbugValue::UInt32(i) => json!(i),
+        LbugValue::UInt16(i) => json!(i),
+        LbugValue::UInt8(i) => json!(i),
+        LbugValue::Double(d) => json!(d),
+        LbugValue::Float(f) => json!(f),
+        LbugValue::String(s) => Value::String(s.clone()),
+        LbugValue::Date(d) => Value::String(d.to_string()),
+        LbugValue::Timestamp(t) => Value::String(t.to_string()),
+        LbugValue::Interval(i) => Value::String(i.to_string()),
+        LbugValue::List(_, l) => Value::Array(l.iter().map(lbug_val_to_json).collect()),
         _ => Value::String(format!("{:?}", val)),
     }
 }
 
-/// 将 Kuzu 的 NodeVal 解析为 GraphNode
-fn extract_kuzu_node(node: &NodeVal) -> GraphNode {
+/// 将 Ladybug 的 NodeVal 解析为 GraphNode
+fn extract_lbug_node(node: &NodeVal) -> GraphNode {
     let mut props = serde_json::Map::new();
     for (k, v) in node.get_properties() {
-        props.insert(k.clone(), kuzu_val_to_json(v));
+        props.insert(k.clone(), lbug_val_to_json(v));
     }
     props.insert("_labels".to_string(), json!([node.get_label_name()]));
 
@@ -551,11 +551,11 @@ fn extract_kuzu_node(node: &NodeVal) -> GraphNode {
     }
 }
 
-/// 将 Kuzu 的 RelVal 解析为 GraphEdge
-fn extract_kuzu_rel(rel: &RelVal) -> GraphEdge {
+/// 将 Ladybug 的 RelVal 解析为 GraphEdge
+fn extract_lbug_rel(rel: &RelVal) -> GraphEdge {
     let mut props = serde_json::Map::new();
     for (k, v) in rel.get_properties() {
-        props.insert(k.clone(), kuzu_val_to_json(v));
+        props.insert(k.clone(), lbug_val_to_json(v));
     }
 
     GraphEdge {
@@ -567,21 +567,21 @@ fn extract_kuzu_rel(rel: &RelVal) -> GraphEdge {
     }
 }
 
-/// 执行 Kuzu 真实查询
-async fn execute_kuzu(state: &AppState, cypher: &str) -> Result<GraphData, String> {
-    let db_lock = state.kuzu_db.lock().await;
-    let db = db_lock.as_ref().ok_or("Kuzu 连接不存在")?;
+/// 执行 Ladybug 真实查询
+async fn execute_lbug(state: &AppState, cypher: &str) -> Result<GraphData, String> {
+    let db_lock = state.lbug_db.lock().await;
+    let db = db_lock.as_ref().ok_or("Ladybug 连接不存在")?;
     let conn = Connection::new(db).map_err(|e| format!("初始化连接失败: {}", e))?;
 
     let result = conn.query(cypher)
-        .map_err(|e| format!("Kuzu 查询执行失败: {}", e))?;
+        .map_err(|e| format!("Ladybug 查询执行失败: {}", e))?;
 
     let mut nodes: std::collections::HashMap<String, GraphNode> = std::collections::HashMap::new();
     let mut edges: std::collections::HashMap<String, GraphEdge> = std::collections::HashMap::new();
 
     for row in result {
         for val in row {
-            traverse_kuzu_value(&val, &mut nodes, &mut edges);
+            traverse_lbug_value(&val, &mut nodes, &mut edges);
         }
     }
 
@@ -591,48 +591,48 @@ async fn execute_kuzu(state: &AppState, cypher: &str) -> Result<GraphData, Strin
     })
 }
 
-fn traverse_kuzu_value(
-    val: &KuzuValue,
+fn traverse_lbug_value(
+    val: &LbugValue,
     nodes: &mut std::collections::HashMap<String, GraphNode>,
     edges: &mut std::collections::HashMap<String, GraphEdge>,
 ) {
     match val {
-        KuzuValue::Node(node_val) => {
-            let n = extract_kuzu_node(node_val);
+        LbugValue::Node(node_val) => {
+            let n = extract_lbug_node(node_val);
             nodes.insert(n.id.clone(), n);
         }
-        KuzuValue::Rel(rel_val) => {
-            let e = extract_kuzu_rel(rel_val);
+        LbugValue::Rel(rel_val) => {
+            let e = extract_lbug_rel(rel_val);
             edges.insert(e.id.clone(), e);
         }
-        KuzuValue::RecursiveRel { nodes: n_list, rels: r_list } => {
+        LbugValue::RecursiveRel { nodes: n_list, rels: r_list } => {
             for n_val in n_list {
-                let n = extract_kuzu_node(n_val);
+                let n = extract_lbug_node(n_val);
                 nodes.insert(n.id.clone(), n);
             }
             for r_val in r_list {
-                let e = extract_kuzu_rel(r_val);
+                let e = extract_lbug_rel(r_val);
                 edges.insert(e.id.clone(), e);
             }
         }
-        KuzuValue::List(_, items) | KuzuValue::Array(_, items) => {
+        LbugValue::List(_, items) | LbugValue::Array(_, items) => {
             for item in items {
-                traverse_kuzu_value(item, nodes, edges);
+                traverse_lbug_value(item, nodes, edges);
             }
         }
-        KuzuValue::Struct(fields) => {
+        LbugValue::Struct(fields) => {
             for (_, item) in fields {
-                traverse_kuzu_value(item, nodes, edges);
+                traverse_lbug_value(item, nodes, edges);
             }
         }
-        KuzuValue::Map(_, pairs) => {
+        LbugValue::Map(_, pairs) => {
             for (k, v) in pairs {
-                traverse_kuzu_value(k, nodes, edges);
-                traverse_kuzu_value(v, nodes, edges);
+                traverse_lbug_value(k, nodes, edges);
+                traverse_lbug_value(v, nodes, edges);
             }
         }
-        KuzuValue::Union { value, .. } => {
-            traverse_kuzu_value(value, nodes, edges);
+        LbugValue::Union { value, .. } => {
+            traverse_lbug_value(value, nodes, edges);
         }
         _ => {}
     }
@@ -683,8 +683,8 @@ pub async fn get_schema_stats(state: &AppState) -> Result<SchemaStats, String> {
 
         Ok(stats)
     } else {
-        let db_lock = state.kuzu_db.lock().await;
-        let db = db_lock.as_ref().ok_or("Kuzu 连接已断开")?;
+        let db_lock = state.lbug_db.lock().await;
+        let db = db_lock.as_ref().ok_or("Ladybug 连接已断开")?;
         let conn = Connection::new(db).map_err(|e| format!("连接失效: {}", e))?;
 
         let mut stats = SchemaStats {
@@ -694,8 +694,8 @@ pub async fn get_schema_stats(state: &AppState) -> Result<SchemaStats, String> {
             rel_types: Vec::new(),
         };
 
-        // Kuzu 中获取 schema 的常见方式：
-        // Kuzu 支持 `CALL show_tables() RETURN *` 获取所有的节点和边表
+        // Ladybug 中获取 schema 的常见方式：
+        // Ladybug 支持 `CALL show_tables() RETURN *` 获取所有的节点和边表
         if let Ok(mut res) = conn.query("CALL show_tables() RETURN *") {
             let mut node_tables = Vec::new();
             let mut rel_tables = Vec::new();
@@ -704,11 +704,11 @@ pub async fn get_schema_stats(state: &AppState) -> Result<SchemaStats, String> {
                 // 通常表返回包含 "name" 和 "type"
                 if row.len() >= 2 {
                     let name = match &row[1] { // index 1 is typical for 'name' in some versions, but better safe
-                        KuzuValue::String(s) => s.clone(),
+                        LbugValue::String(s) => s.clone(),
                         _ => format!("{:?}", row[1])
                     };
                     let type_str = match &row[2] {
-                        KuzuValue::String(s) => s.clone(),
+                        LbugValue::String(s) => s.clone(),
                         _ => format!("{:?}", row[2])
                     };
                     
@@ -717,20 +717,20 @@ pub async fn get_schema_stats(state: &AppState) -> Result<SchemaStats, String> {
                     } else if type_str == "REL" {
                         rel_tables.push(name);
                     } else {
-                        // Kuzu 0.11 CALL show_tables column 1 is name, 2 is type in newer versions
+                        // Ladybug 0.11 CALL show_tables column 1 is name, 2 is type in newer versions
                         // Let's iterate row and find type 
                         let mut name_val = "".to_string();
                         let mut type_val = "".to_string();
                         for v in &row {
-                            if let KuzuValue::String(s) = v {
+                            if let LbugValue::String(s) = v {
                                 if s == "NODE" || s == "REL" { type_val = s.clone(); continue;}
                             }
                         }
                         if type_val == "NODE" {
-                            if let KuzuValue::String(s) = &row[1] { name_val = s.clone(); }
+                            if let LbugValue::String(s) = &row[1] { name_val = s.clone(); }
                             if !name_val.is_empty() { node_tables.push(name_val); }
                         } else if type_val == "REL" {
-                            if let KuzuValue::String(s) = &row[1] { name_val = s.clone(); }
+                            if let LbugValue::String(s) = &row[1] { name_val = s.clone(); }
                             if !name_val.is_empty() { rel_tables.push(name_val); }
                         }
                     }
@@ -742,7 +742,7 @@ pub async fn get_schema_stats(state: &AppState) -> Result<SchemaStats, String> {
                 if let Ok(mut c_res) = conn.query(&format!("MATCH (n:{}) RETURN count(n)", table_name)) {
                     if let Some(c_row) = c_res.next() {
                         if !c_row.is_empty() {
-                            if let KuzuValue::Int64(c) = c_row[0] {
+                            if let LbugValue::Int64(c) = c_row[0] {
                                 stats.total_nodes += c;
                                 stats.labels.push(ItemCount { name: table_name, count: c });
                             }
@@ -756,7 +756,7 @@ pub async fn get_schema_stats(state: &AppState) -> Result<SchemaStats, String> {
                 if let Ok(mut c_res) = conn.query(&format!("MATCH ()-[r:{}]->() RETURN count(r)", table_name)) {
                     if let Some(c_row) = c_res.next() {
                         if !c_row.is_empty() {
-                            if let KuzuValue::Int64(c) = c_row[0] {
+                            if let LbugValue::Int64(c) = c_row[0] {
                                 stats.total_edges += c;
                                 stats.rel_types.push(ItemCount { name: table_name, count: c });
                             }

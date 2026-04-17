@@ -71,11 +71,11 @@ function App() {
   }, [themeMode]);
 
   // 数据库配置
-  const [dbType, setDbType] = useState<"neo4j" | "kuzu">("kuzu");
+  const [dbType, setDbType] = useState<"neo4j" | "lbug">("lbug");
   const [uri, setUri] = useState("neo4j://localhost:7687");
   const [user, setUser] = useState("neo4j");
   const [password, setPassword] = useState("mimouse313");
-  const [kuzuPath, setKuzuPath] = useState("./data/db/kuzu_db.kuzu");
+  const [lbugPath, setLbugPath] = useState("./data/db/graph.lbug");
 
   // 连接状态
   const [connected, setConnected] = useState(false);
@@ -212,7 +212,7 @@ function App() {
           uri: dbType === "neo4j" ? uri : null,
           user: dbType === "neo4j" ? user : null,
           password: dbType === "neo4j" ? password : null,
-          kuzu_path: dbType === "kuzu" ? kuzuPath : null,
+          lbug_path: dbType === "lbug" ? lbugPath : null,
           database: dbType === "neo4j" ? (selectedDb || "neo4j") : "default",
         },
       });
@@ -498,7 +498,7 @@ function App() {
       if (dbType === "neo4j") {
         expandQuery = `MATCH (n)-[r]-(m) WHERE elementId(n) = '${id}' OR toString(id(n)) = '${id}' RETURN n, r, m LIMIT 50`;
       } else {
-        // Fallback for Kuzu
+        // Fallback for Ladybug
         expandQuery = `MATCH (a)-[r]-(b) WHERE toString(offset(id(a))) = '${id.split(':').pop()}' RETURN a, r, b LIMIT 50`;
       }
       setLoading(true);
@@ -771,7 +771,7 @@ function App() {
         {activeNav === "database" && (
           <ConnectView
             dbType={dbType} setDbType={setDbType} uri={uri} setUri={setUri} user={user} setUser={setUser}
-            password={password} setPassword={setPassword} kuzuPath={kuzuPath} setKuzuPath={setKuzuPath}
+            password={password} setPassword={setPassword} lbugPath={lbugPath} setLbugPath={setLbugPath}
             connected={connected} connecting={connecting} connectMsg={connectMsg} handleConnect={handleConnect}
             databases={databases} selectedDb={selectedDb} setSelectedDb={setSelectedDb} handleDbSwitch={handleDbSwitch}
             schemaLabels={schemaLabels} schemaRelTypes={schemaRelTypes} schemaProperties={schemaProperties} TAG_COLORS={TAG_COLORS}
@@ -789,7 +789,7 @@ function App() {
       <main className="main-area">
         <Header 
           sidebarCollapsed={sidebarCollapsed} setSidebarCollapsed={setSidebarCollapsed}
-          connected={connected} dbType={dbType} uri={uri} kuzuPath={kuzuPath}
+          connected={connected} dbType={dbType} uri={uri} lbugPath={lbugPath}
           databases={databases} selectedDb={selectedDb} user={user}
         />
 
@@ -797,7 +797,7 @@ function App() {
           <div className="query-editor">
             <div className="query-body">
               <div className="query-prefix">
-                <span className="query-db-label">{dbType === "neo4j" ? selectedDb : "kuzu"}</span>
+                <span className="query-db-label">{dbType === "neo4j" ? selectedDb : "lbug"}</span>
                 <span className="query-prompt">$</span>
               </div>
               <textarea
