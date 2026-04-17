@@ -17,7 +17,7 @@ AtlasGraph 旨在为多种图数据库提供一个统一的视图与编辑接入
 当前版本在底层依赖层和前端渲染层原生支持以下三大图谱驱动引擎：
 
 - **[Neo4j](https://github.com/neo4j/neo4j)**：基于远程 Bolt 协议的标准网络在线图数据库。
-- **[Ladybug](https://github.com/ladybugdb/ladybugdb)**：高性能本地嵌入式原生关系型图数据库。
+- **[Ladybug](https://github.com/ladybugdb/ladybug)**：高性能本地嵌入式原生关系型图数据库。
 - **[Kuzu](https://github.com/kuzudb/kuzu)**：本地嵌入式分析型极速关系图数据库。
 
 <br>
