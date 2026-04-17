@@ -1,7 +1,7 @@
 [package]
-name = "graph-visualization"
+name = "atlas-graph"
 version = "0.1.0"
-description = "A konledge-graph visualization and edit Tools"
+description = "一个知识图谱可视化工具"
 authors = ["wxj"]
 edition = "2021"
 

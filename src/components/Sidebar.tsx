@@ -49,7 +49,14 @@ export default function Sidebar({
       >
         <aside className="sidebar">
           <div className="sidebar-header">
-            <h2>知识图谱可视化工具</h2>
+            {!sidebarCollapsed && (
+              <div className="sidebar-title-text">
+                <h2>AtlasGraph</h2>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                  知识图谱可视化工具
+                </div>
+              </div>
+            )}
             <button
               className="sidebar-collapse-btn"
               onClick={() => setSidebarCollapsed(true)}

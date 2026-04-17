@@ -1,4 +1,4 @@
-import { IconHistory, IconTrash } from "./icons";
+import { IconHistory } from "./icons";
 import "./HistoryView.css";
 
 interface HistoryItem {

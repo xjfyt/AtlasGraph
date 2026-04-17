@@ -27,7 +27,7 @@ interface ResultPanelProps {
   handleCanvasClick: () => void;
   handleNodeRightClick: (nodeId: string, x: number, y: number) => void;
   handleEdgeRightClick: (edgeId: string, x: number, y: number) => void;
-  handleGlobalSearch?: (q: string) => void;
+  handleGlobalSearch?: (text: string) => Promise<string[]>;
   handleMenuItemClick: (action: string) => void;
 
   editingProp: string | null;
@@ -41,11 +41,11 @@ interface ResultPanelProps {
   setNewPropKey: (key: string) => void;
   newPropValue: string;
   setNewPropValue: (val: string) => void;
-  handleSaveProp: () => void;
+  handleSaveProp: (key: string, val: string) => Promise<void>;
   handleDeleteProp: (key: string) => void;
   schemaLabels: string[];
   schemaRelTypes: string[];
-  handleSaveTempEntity: () => void;
+  handleSaveTempEntity: (labelOrType: string, customProps: any) => Promise<void>;
   handleCancelTempEntity: () => void;
 }
 

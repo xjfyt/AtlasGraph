@@ -1,6 +1,5 @@
-import { open } from "@tauri-apps/plugin-dialog";
 import "./ConnectView.css";
-import { IconFolderOpen, IconSpinner, IconPlug } from "./icons";
+import { IconSpinner, IconPlug } from "./icons";
 import Neo4jForm from "./engines/Neo4jForm";
 import LbugForm from "./engines/LbugForm";
 import KuzuForm from "./engines/KuzuForm";
@@ -21,16 +20,12 @@ export interface ConnectViewProps {
   databases: { name: string; is_default: boolean; status: string }[];
   selectedDb: string; setSelectedDb: (v: string) => void;
   handleDbSwitch: (db: string) => void;
-  schemaLabels: string[];
-  schemaRelTypes: string[];
-  schemaProperties: string[];
-  TAG_COLORS: string[];
 }
 
 export default function ConnectView({
   dbType, setDbType, supportedDbs, uri, setUri, user, setUser, password, setPassword,
   lbugPath, setLbugPath, kuzuPath, setKuzuPath, connected, connecting, connectMsg, handleConnect,
-  databases, selectedDb, setSelectedDb, handleDbSwitch, schemaLabels, schemaRelTypes, schemaProperties, TAG_COLORS
+  databases, selectedDb, setSelectedDb, handleDbSwitch
 }: ConnectViewProps) {
   return (
     <>

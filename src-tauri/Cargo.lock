@@ -214,6 +214,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "atlas-graph"
+version = "0.1.0"
+dependencies = [
+ "kuzu",
+ "lbug",
+ "neo4rs",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "tauri-plugin-fs",
+ "tauri-plugin-opener",
+ "tokio",
+]
+
+[[package]]
 name = "atomic-waker"
 version = "1.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1582,23 +1599,6 @@ dependencies = [
  "glib-sys",
  "libc",
  "system-deps",
-]
-
-[[package]]
-name = "graph-visualization"
-version = "0.1.0"
-dependencies = [
- "kuzu",
- "lbug",
- "neo4rs",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-dialog",
- "tauri-plugin-fs",
- "tauri-plugin-opener",
- "tokio",
 ]
 
 [[package]]

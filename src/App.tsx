@@ -3,18 +3,14 @@ import { invoke } from "@tauri-apps/api/core";
 
 
 import "./App.css";
-import GraphCanvas from "./components/GraphCanvas";
 import ConnectView from "./components/ConnectView";
 import HistoryView from "./components/HistoryView";
 import ThemeView from "./components/ThemeView";
 import Sidebar from "./components/Sidebar";
 import Header from "./components/Header";
-import ContextMenu from "./components/ContextMenu";
-import DetailPanel from "./components/DetailPanel";
-import GraphToolbar, { ActiveTool } from "./components/GraphToolbar";
+import { ActiveTool } from "./components/GraphToolbar";
 import QueryEditor from "./components/QueryEditor";
 import ResultPanel from "./components/ResultPanel";
-import { IconGraph, IconTable, IconRaw, IconMaximize, IconSpinner, IconPlay, IconX } from "./components/icons";
 const GRAPH_COLORS = ["#F4B5BD", "#A5E1D3", "#FCE49E", "#CDB4DB", "#B9E1F9", "#FFDAC1"];
 
 import { toCypherLiteral, parseUserValue, lbugOffset, friendlyDbError } from "./utils/dbUtils";
@@ -134,7 +130,6 @@ function App() {
   const [schemaStats, setSchemaStats] = useState<any>(null);
   const [schemaLabels, setSchemaLabels] = useState<string[]>([]);
   const [schemaRelTypes, setSchemaRelTypes] = useState<string[]>([]);
-  const [schemaProperties, setSchemaProperties] = useState<string[]>([]);
 
   // 持久化历史记录
   useEffect(() => {
@@ -174,24 +169,6 @@ function App() {
       setSchemaRelTypes(stats.rel_types.map((t: any) => t.name));
     } catch { /* ignore */ }
 
-    // db.propertyKeys() 仅 Neo4j 支持；Ladybug 调用会抛错
-    if (dbType === "neo4j") {
-      try {
-        const propResult: any = await invoke("execute_cypher", {
-          request: { query: "CALL db.propertyKeys() YIELD propertyKey RETURN propertyKey" },
-        });
-        if (propResult.nodes) {
-          const keys = propResult.nodes.map((n: any) => {
-            const props = n.properties;
-            if (typeof props === "object" && props.propertyKey) return props.propertyKey;
-            return null;
-          }).filter(Boolean);
-          if (keys.length > 0) setSchemaProperties(keys);
-        }
-      } catch { /* ignore */ }
-    } else {
-      setSchemaProperties([]);
-    }
   };
 
   // ===== 连接数据库 =====
@@ -256,7 +233,6 @@ function App() {
     setSelectedDb(dbType === "neo4j" ? "neo4j" : "default");
     setSchemaLabels([]);
     setSchemaRelTypes([]);
-    setSchemaProperties([]);
   }, [dbType]);
 
   // ===== 切换数据库 =====
@@ -885,7 +861,6 @@ function App() {
     handleExecute(`MATCH p=()-[r:\`${relType}\`]->() RETURN p LIMIT 25`);
   };
 
-  const TAG_COLORS = ["tag-pink", "tag-green", "tag-yellow", "tag-blue", "tag-purple", "tag-orange"];
 
   const mergedData = useMemo(() => ({
     nodes: [...graphData.nodes, ...tempData.nodes],
@@ -907,7 +882,6 @@ function App() {
               password={password} setPassword={setPassword} lbugPath={lbugPath} setLbugPath={setLbugPath} kuzuPath={kuzuPath} setKuzuPath={setKuzuPath}
               connected={connected} connecting={connecting} connectMsg={connectMsg} handleConnect={handleConnect}
               databases={databases} selectedDb={selectedDb} setSelectedDb={setSelectedDb} handleDbSwitch={handleDbSwitch}
-              schemaLabels={schemaLabels} schemaRelTypes={schemaRelTypes} schemaProperties={schemaProperties} TAG_COLORS={TAG_COLORS}
             />
             {/* 替换原数据模式概览的图谱概览 */}
             <div className="form-section schema-section">

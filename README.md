@@ -1,115 +1,196 @@
-# 知识图谱可视化工具 (KG Graph Visualization)
-
-基于 [Tauri v2](https://tauri.app/)（Rust 后端）+ React（前端）构建的高性能跨平台知识图谱管理与可视化桌面应用。
-作为一款生产级的图谱应用，本作深度整合了官方强大的 [@neo4j-nvl](https://www.npmjs.com/package/@neo4j-nvl/base) 渲染引擎，支持对图数据的真正全面编辑与管理。
+# AtlasGraph - 知识图谱可视化工具
 
 ---
 
-## 🎯 核心功能
+## 一、 项目介绍
 
-- **多引擎按需编译**：支持直连 **Neo4j**（远程协议）、**Ladybug**（本地嵌入式）以及 **Kuzu**（本地嵌入式）。通过 Cargo Features 机制，可实现底层依赖与前端界面的全自动按需定制与裁剪，减小打包体积。
-- **生产级编辑闭环 (CRUD)**：
-  - **右键上下文菜单**：在画布空白处右键快速创建新节点；对节点/边右键进行连线、隐藏、解绑，以及执行基于 Cypher 的底层**持久化删除**（Detach Delete）。
-  - **交互式牵拉连线**：选中节点后可通过右键选项快速牵拉至周边节点，建立并命名全新的关系（Relationship）。
-- **动态属性检查器 (Detail Panel)**：模仿 Neo4j Browser 的右侧详情面板。
-  - 单击节点/关系即可获取高亮状态（通过 `@neo4j-nvl` 官方 Interactions 实现轮廓高亮）。
-  - 支持对任意属性值的动态增删改（悬浮点击直接进入编辑模式，支持保存至底层数据库）。
-- **组件化架构**：应用高度解耦，功能拆分为 `Sidebar`, `ConnectView`, `Header`, `ContextMenu`, `DetailPanel` 等专门化组件，极易维护。
-- **历史与 Schema 追踪**：内置本地化存储的 Cypher 历史记录，以及自适应获取数据库内 `Labels`、`RelTypes`、`Properties` 的数据模式概览（Schema Overview）。
+基于 [Tauri v2](https://tauri.app/)（Rust 后端）与 React TypeScript（前端）构建的高性能跨平台知识图谱管理、可视化与编辑桌面应用。项目深度整合了官方级强大的 `@neo4j-nvl` 渲染引擎，赋予图数据真正全面的可视化交互与编辑管理能力。
 
----
+AtlasGraph 旨在为多种图数据库提供一个统一的视图与编辑接入平台。与针对特定单一体系（如 Neo4j Browser）的工具不同，AtlasGraph 通过底层驱动解耦机制，能够同时顺滑地桥接远程分布式图数据库和本地嵌入式高性能图数据库。
 
-## 🛠 环境要求
+<br>
 
-| 工具 | 最低版本 | 安装方式 |
-|------|---------|---------|
-| Node.js | v18+ | [nodejs.org](https://nodejs.org/) |
-| Rust & Cargo | latest stable | [rustup.rs](https://rustup.rs/) |
-| Visual Studio Build Tools | 2019+ | [VS Installer](https://visualstudio.microsoft.com/downloads/) (勾选 "C++ 桌面开发") |
-| CMake + Ninja | | 用于本地编译 Ladybug 依赖库 |
+### 1、 当前支持的数据库
 
-> **验证安装**：在终端执行 `node -v`、`npm -v`、`rustc --version`，确认均有版本输出。
+当前版本在底层依赖层和前端渲染层原生支持以下三大图谱驱动引擎：
+
+- **[Neo4j](https://github.com/neo4j/neo4j)**：基于远程 Bolt 协议的标准网络在线图数据库。
+- **[Ladybug](https://github.com/ladybugdb/ladybugdb)**：高性能本地嵌入式原生关系型图数据库。
+- **[Kuzu](https://github.com/kuzudb/kuzu)**：本地嵌入式分析型极速关系图数据库。
+
+<br>
+
+### 2、 可视化与编辑功能
+
+- **原生力导向高逼真渲染**：全盘采用工业级的 `@neo4j-nvl` 组件库，提供附带节点碰撞计算的力导向（Force-Directed）图谱重力布局架构。
+- **动态读写实时反馈**：支持在可视化视图上直接对节点和网状关系线进行操作与编辑，并实时反馈至底库。
 
 ---
 
-## 🚀 快速上手
+## 二、 核心功能
 
-### 1. 安装依赖
+### 1、 生产级编辑闭环 (CRUD)
 
-```bash
-cd graph-visualization
-npm install
-```
+- **多功能右键上下文菜单**：在画布空白区域右键可快捷创建散列节点；对已有实体对象右键可进行拖延连线、隐藏、解绑，以及一键执行底层的持久化级联删除（Detach Delete）。
+- **交互式牵拉连线**：选中节点中心激活后，可在右侧悬浮面板右键拖拽快速牵引操作线至周边节点，直观建立全新的数据模型。
 
-### 2. 开发模式运行
+<br>
 
-```bash
-npm run tauri dev
-```
+### 2、 动态图谱属性检查器面板
 
-> **注意：** 当首次编译包含 `lbug` 的 Rust 后端依赖时可能较长（约 15–20 分钟），后续启动将会达到秒开速度。遇到 `Ctrl+C` 中断等情况请先检查任务环境是否结束，使用 `clear` 清理后重试。
+原生支持右侧滑出的直观双向展示属性面板体系：
 
-### 3. 主干使用流
+#### （1） 视觉悬浮双向高亮机制
+单击任一游离节点或关系轨道，画布和侧边栏将发生双工联动高亮聚焦，并在侧边栏详细呈现字典内的参数。
 
-1. 启动应用后，左侧边栏即是**工作引擎面板**，选择您对应的图数据库：
-   - 如果使用 **Ladybug**：点击右侧📁按钮直接选取本地 `.lbug` 数据库文件。
-   - 如果使用 **Neo4j**：填入对应的 `bolt://` URI 及账号密码。
-2. 点击 **连接**。
-3. 界面右侧或下方的主键盘区是 **Cypher 查询编辑器**：
-   ```cypher
-   MATCH (n)-[r]->(m) RETURN n, r, m LIMIT 100
-   ```
-4. 执行查询后结果将以力导向图可视化。
-5. **点选交互**：点击节点高亮并展开属性；画布空白处右键创造实体；图谱内实体右键触发增删连线逻辑。
+#### （2） 表单化数据形态变动
+开放对象属性框键值对的直接修改功能。支持加减字段及覆写参数值；点击更新直达系统后台数据库。
 
----
+<br>
 
-### 选项编译与依赖裁剪定制
+### 3、 历史与 Schema 概览追踪
 
-当前项目支持 **可选图数据库编译**，默认支持 `neo4j` 和 `lbug`。如果你希望减小应用程序体积，或者添加特定的图数据库测试分支（例如 `kuzu`），可以利用 Cargo 的 `features` 以及 Vite 的环境变量实现底层的代码裁剪和界面的同步展示。
+#### （1） 执行历史防丢溯源
+内建持久化本地缓存的 Cypher 指令记录列表，一键回顾并回填复杂历史语句，防止重要输入流失。
 
-**默认构建（全量支持 Neo4j 和 Ladybug）：**
-```bash
-npm run tauri build
-```
-
-**只包含特定数据库（例：只包含 Kuzu）：**
-```bash
-cargo build --release --no-default-features --features kuzu
-```
-> **工作原理**：
-> 1. Rust 后端的宏 `#[cfg(feature="...")]` 会直接在编译时剔除未被选中的数据库代码及重度依赖包，最大化压缩二进制文件。
-> 2. Tauri 后端会向前端（React）注册自身编译后的能力集合 `get_supported_dbs`。
-> 3. 前端接收到支持集合后，动态渲染或隐藏对应的界面选项（如不在支持列表的 Kuzu 入口）。
-
-生成物位于：
-- **可执行文件**：`src-tauri/target/release/知识图谱可视化工具.exe`
-- **安装包**：`src-tauri/target/release/bundle/` 目录下
+#### （2） 自适应统配模式扫描
+前端系统自适应抓取和整合当层目标库中的全局 `Labels`（标签）、`RelTypes`（关系种类网络）及 `Properties`（键值字段表），构成整体 Schema 分析面板。
 
 ---
 
-## 📁 核心项目结构
+## 三、 项目结构
 
-```
-graph-visualization/
+在经过深度解耦重构后，目前形成了极高可维护性的代码体系：
+
+```text
+AtlasGraph/
 ├── src/                       # 前端层 (React + TypeScript)
-│   ├── App.tsx                # 应用级状态流与路由分发（解耦后清爽的主干）
-│   ├── App.css                # 全局样式系统 
-│   ├── components/            # UI功能切片
-│   │   ├── ConnectView.tsx    # 连接与 Schema 获取引擎面板
-│   │   ├── Sidebar.tsx        # 含路由及导航的左侧可收起容器
-│   │   ├── GraphCanvas.tsx    # 封装 @neo4j-nvl 高性能原点图谱渲染
-│   │   ├── DetailPanel.tsx    # 属性增删查改检测仪（节点/边面板）
-│   │   ├── ContextMenu.tsx    # 定制化的多态右键系统
-│   │   ├── Header.tsx         # 应用顶栏
-│   │   ├── HistoryView.tsx    # Cypher 执行历史记录流
-│   │   ├── ThemeView.tsx      # 全局深色/浅色/系统主题管理
-│   │   └── icons.tsx          # 模块化纯净 SVG 高性能图标栈
-├── src-tauri/                 # Rust 后端桥接引擎层
+│   ├── App.tsx                # 应用根组件以及状态与路由系统分支
+│   ├── components/            # UI 切片集
+│   │   ├── engines/           # 各支持数据库引擎的专用连接表单和类型库
+│   │   │   ├── types.ts       # 连接界面的属性总接口合集
+│   │   │   ├── Neo4jForm.tsx  # Neo4j 面板
+│   │   │   ├── LbugForm.tsx   # Ladybug 面板
+│   │   │   └── KuzuForm.tsx   # Kuzu 面板
+│   │   ├── ConnectView.tsx    # 连接中心和动态面板入口展示板
+│   │   ├── GraphCanvas.tsx    # 封装 @neo4j-nvl 模块渲染画板
+│   │   ├── DetailPanel.tsx    # 图属性增删查改侧控台
+│   │   └── ContextMenu.tsx    # 自定义多态多选浮动交互菜单网格控制系统
+├── src-tauri/                 # Tauri 安全系统和 Rust 原生胶水通讯中转总汇合包
 │   ├── src/
-│   │   ├── main.rs            
-│   │   ├── lib.rs             # Tauri APIs 注册与生命周期管理
-│   │   └── database.rs        # 多协议池切换 (neo4j vs lbug 路由)
-│   └── Cargo.toml
-└── README.md
+│   │   ├── database/          # 解耦模块化的各数据解析引擎驱动群落集
+│   │   │   ├── mod.rs         # 通用网关通讯代理入口与所有公用总接查表接口层级
+│   │   │   ├── neo4j.rs       # Neo4j 安全通讯底层驱动和通道信件处理器模块
+│   │   │   ├── lbug.rs        # Ladybug 操作挂载安全通讯实现模块
+│   │   │   └── kuzu.rs        # Kuzu Kuzu 特定协议联通及控制通道处理机制
+│   │   ├── main.rs            # 全局底层起步以及项目初始化防线总中心
+│   │   └── lib.rs             # 用于系统通讯 Tauri Commands 交互接口调用登记拦截验证处
+│   └── Cargo.toml             # 控制库依赖与宏编译裁切开关环境配置文件
 ```
+
+---
+
+## 四、 环境要求与配置
+
+为确保底层 C++ 图数据库依赖及 Tauri 前后端能够正常编译及启动，配置需满足规定的基础要求。
+
+> 💡 **我们在当前项目中测试使用的主力版本组合为**：
+> - **Node.js**: v18.20.0
+> - **Rust**: 1.77.2
+> - **CMake**: 3.29.0
+
+<br>
+
+### 1、 跨系统通用环境预备
+
+#### （1） Node.js 控制组件
+版本需跨过 **`v18.0.0`** 底线（推荐采用更新且兼容稳定的常规包版本）。[点击获取下载](https://nodejs.org/)。
+
+#### （2） Rust 与 Cargo
+基于 Tauri V2 内部的底层借用安全链检测约束，请确认您设备安装的版本需不低于 **`1.70.0`**。
+- 一键装配指令：
+  ```bash
+  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+  ```
+
+#### （3） CMake 及 Ninja
+当开启或涉及了底层的 `lbug` 及 `kuzu` 等嵌入式本地大核图库编译时，将需要它们协助作为基础保障。要求使用版本不应小于 **`3.20.0`**。
+
+<br>
+
+### 2、 macOS 系统配置指引
+针对搭载原生 Apple Silicon (M系核心) 或 Intel 架构处理器的 MacOS 计算机终端：
+
+#### （1） 操作系统构建参数限定与基准
+为了利用最新底层 C++17 特性的原生数字地址操作算法库兼容转换（如 `std::to_chars` 解析操作），面向目标环境要求最低不低于 **macOS 13.3 (Ventura)**。
+
+#### （2） Command Line Tools 系统底件安全补足
+必须基于 Xcode 辅助命令行体系以获取和统筹底层 Clang 编译支持：
+  ```bash
+  xcode-select --install
+  brew install cmake ninja
+  ```
+
+<br>
+
+### 3、 Windows 系统配置指引
+基于桌面 Windows 操作环境（强烈推荐 Windows 10/11）：
+
+#### （1） 网页视图渲染底层安全框架
+针对 Windows 10 系统，需安装 [WebView2 运行时](https://developer.microsoft.com/en-us/microsoft-edge/webview2/)（Windows 11 系统默认自带，无需安装）。
+
+#### （2） C++ 桌面原声强重装编译底层组件
+必须安装集成辅助编译管理工具 **Visual Studio Build Tools 2019+ (且 MSVC 达到不低于 19.20+ 以上级别)**。
+- 部署操作与配置指定安装指令：前往官方渠道获取并下载 [Visual Studio Build Tools](https://visualstudio.microsoft.com/downloads/)。在安装界面中务必勾选 **"使用 C++ 的桌面开发" (Desktop development with C++)**，并确认在右侧组件面板中包含了 **Windows 10 SDK** (或更高的 11 SDK 组版本)。
+
+---
+
+## 五、 运行与构建
+
+### 1、 开发模式运行
+在项目根目录安装前端依赖，随后开启开发模式调试：
+```bash
+npm install
+npm run app:dev
+```
+
+> ⚠️ **编译提示**：初次启动时，系统会下载并编译底层 C++ 数据库组件。根据您的系统性能，可能耗时约 10~20 分钟并占用大量 CPU 资源。此后的编译会利用 CMakeCache 在极短时间内完成。如果在此期间终端卡死或中途取消编译导致卡住，请使用 `cargo clean` 命令清理缓存后重试。
+
+<br>
+
+### 2、 条件编译（多引擎组合打包支持）
+本项目支持按需编译图数据库驱动依赖，避免编译不需要的引擎，以此兼顾构建速度和包体大小。前端 UI 会自动感应并隐藏未启用的连接入口。
+
+我们提供了非常便捷的无门槛外挂配置方式，只需修改应用根目录下 `package.json` 中的 `atlasConfig` 字段即可实现指定编译，您不再需要输入繁杂的长端指令：
+
+#### （1） 配置按需支持清单
+打开 `package.json` 文件，找到（或添加）`atlasConfig` 及其内部的 `features` 特性阵列：
+```json
+  "atlasConfig": {
+    "features": [
+      "neo4j",
+      "kuzu"
+    ]
+  }
+```
+* **单功能**：若只保留某一引擎，可改为只含 `"neo4j"`。
+* **组合/全量型**：支持填入 `"neo4j"`, `"lbug"`, `"kuzu"` 的任一组合配置列表。
+
+#### （2） 执行自动桥接指令
+配置完成后，直接使用专用的衍生构建触发指令，脚手架工具将会自动捕获配置并对底层实施特性构建：
+
+* **开发测试（热更新）模式**：
+  ```bash
+  npm run app:dev
+  ```
+
+<br>
+
+### 3、 正式脱壳打包（成型安装包发布产出）
+若需生成独立、全平台的成品安装包或可以直接运行执行分发的原生文件程序系统，请执行我们预设的标准发行命令：
+```bash
+npm run app:build
+```
+
+打包成功后，各种操作系统的原生特有专属格式安装包资源和二进制归档压缩件（如 Windows 系统常规下的 `.exe` 和封装版 `.msi`；苹果 macOS 生态下的独立专用应用程序包 `.app` 和磁盘镜像封装版 `.dmg` 封装程序包等）均会集中输出存放至同一路径：
+- `src-tauri/target/release/bundle/`

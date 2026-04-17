@@ -1,4 +1,4 @@
-import { IconPanelLeft, IconDatabase, IconCloud, IconPlug, IconFolderOpen } from "./icons";
+import { IconPanelLeft } from "./icons";
 import "./Header.css";
 
 export interface HeaderProps {
