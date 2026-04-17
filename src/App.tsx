@@ -12,89 +12,13 @@ import Header from "./components/Header";
 import ContextMenu from "./components/ContextMenu";
 import DetailPanel from "./components/DetailPanel";
 import GraphToolbar, { ActiveTool } from "./components/GraphToolbar";
+import QueryEditor from "./components/QueryEditor";
+import ResultPanel from "./components/ResultPanel";
 import { IconGraph, IconTable, IconRaw, IconMaximize, IconSpinner, IconPlay, IconX } from "./components/icons";
 const GRAPH_COLORS = ["#F4B5BD", "#A5E1D3", "#FCE49E", "#CDB4DB", "#B9E1F9", "#FFDAC1"];
 
-/* ===== Cypher 文本辅助 ===== */
-// 把任意 JS 值转成 Cypher 字面量，安全转义字符串中的 '\'、'\''、换行等
-function toCypherLiteral(v: any): string {
-  if (v === null || v === undefined) return "null";
-  if (typeof v === "boolean") return v ? "true" : "false";
-  if (typeof v === "number") return Number.isFinite(v) ? String(v) : "null";
-  if (Array.isArray(v)) return `[${v.map(toCypherLiteral).join(", ")}]`;
-  if (typeof v === "object") {
-    const entries = Object.entries(v).map(([k, val]) => `\`${k}\`: ${toCypherLiteral(val)}`);
-    return `{${entries.join(", ")}}`;
-  }
-  // 字符串：JSON.stringify 给我们 \", \\, \n, \r, \t 等符合 Cypher 的双引号串字面量
-  return JSON.stringify(String(v));
-}
-
-// 把用户输入的字符串转成最合适的 JS 值（用于属性编辑）
-// 仅在文本严格表示数字/布尔/null 时转换；带前导零的数字串保留为字符串
-function parseUserValue(raw: string): any {
-  const trimmed = raw.trim();
-  if (trimmed === "") return "";
-  if (trimmed === "null") return null;
-  if (trimmed === "true") return true;
-  if (trimmed === "false") return false;
-  // 严格数字：不包含前导 0（除 "0" 与 "0." 开头的小数）
-  if (/^-?(0|[1-9]\d*)(\.\d+)?$/.test(trimmed) || /^-?\d+(\.\d+)?$/.test(trimmed)) {
-    if (!/^-?0\d+/.test(trimmed)) {
-      const n = Number(trimmed);
-      if (Number.isFinite(n)) return n;
-    }
-  }
-  return raw;
-}
-
-// 把 Ladybug 节点 id "table_id:offset" 中的 offset 抽出来；非法时返回 null
-function lbugOffset(id: string): string | null {
-  const parts = String(id).split(":");
-  if (parts.length < 2) return null;
-  const off = parts[parts.length - 1];
-  return /^\d+$/.test(off) ? off : null;
-}
-
-// 把后端抛出的 Neo4j/Ladybug 错误翻译成对用户友好的中文提示
-function friendlyDbError(err: any): string {
-  const s = String(err?.toString?.() ?? err ?? "");
-  // Neo4j 唯一约束冲突
-  const uc = s.match(/Node\((\d+)\) already exists with label `?(\w+)`? and property `?(\w+)`? = '([^']+)'/);
-  if (uc) {
-    const [, otherId, lbl, propKey, propVal] = uc;
-    return `数据库存在唯一约束：已有 ${lbl} 节点（ID=${otherId}）的 ${propKey} = '${propVal}'。请改用不同的值，或先在 DB 中移除该唯一约束/合并节点。`;
-  }
-  // Ladybug 主键缺失
-  if (/expects primary key/i.test(s)) {
-    return `Ladybug 该 NODE TABLE 需要主键属性，但当前 CREATE 未提供。${s}`;
-  }
-  if (/Could not set lock on file/i.test(s)) {
-    return `Ladybug 数据库文件被占用：可能其他进程或本程序的旧连接仍持有锁。请关闭后重试。`;
-  }
-  return s;
-}
-
-/* ===== 详情类型定义 ===== */
-interface DetailInfo {
-  type: "node" | "edge";
-  id: string;
-  label?: string;
-  labels?: string[];
-  source?: string;
-  target?: string;
-  isTemp?: boolean;
-  properties: Record<string, any>;
-}
-
-interface HistoryItem {
-  query: string;
-  timestamp: number;
-  nodeCount: number;
-  edgeCount: number;
-}
-
-type ThemeMode = "light" | "dark" | "system";
+import { toCypherLiteral, parseUserValue, lbugOffset, friendlyDbError } from "./utils/dbUtils";
+import { DetailInfo, HistoryItem, ThemeMode, ContextMenuState } from "./types";
 
 function App() {
   useEffect(() => {
@@ -169,12 +93,7 @@ function App() {
   const [detail, setDetail] = useState<DetailInfo | null>(null);
 
   // 右键菜单
-  interface ContextMenuState {
-    type: "node" | "edge";
-    id: string;
-    x: number;
-    y: number;
-  }
+
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [editingProp, setEditingProp] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
@@ -1056,27 +975,14 @@ function App() {
         />
 
         <div className="workspace">
-          <div className="query-editor">
-            <div className="query-body">
-              <div className="query-prefix">
-                <span className="query-db-label">{dbType === "neo4j" ? selectedDb : "lbug"}</span>
-                <span className="query-prompt">$</span>
-              </div>
-              <textarea
-                className="query-textarea"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) handleExecute();
-                }}
-                placeholder="MATCH (n) RETURN n LIMIT 25"
-                spellCheck={false}
-              />
-              <button className="query-run-btn" onClick={handleExecute} disabled={loading} title="执行查询 (Ctrl+Enter)">
-                {loading ? <IconSpinner /> : <IconPlay />}
-              </button>
-            </div>
-          </div>
+          <QueryEditor 
+            dbType={dbType} 
+            selectedDb={selectedDb} 
+            query={query} 
+            setQuery={setQuery} 
+            loading={loading} 
+            handleExecute={handleExecute} 
+          />
 
           {error && (
             <div className="error-box">
@@ -1086,137 +992,25 @@ function App() {
           )}
 
           {/* 结果面板 + 右侧属性面板 */}
-          <div className="result-wrapper">
-            <div className={`result-panel ${detail ? "with-detail" : ""}`}>
-              <div className="result-tabs">
-                <div className="result-tabs-left">
-                  <button className={`tab-btn ${activeTab === "graph" ? "active" : ""}`} onClick={() => setActiveTab("graph")}>
-                    <IconGraph />Graph
-                  </button>
-                  <button className={`tab-btn ${activeTab === "table" ? "active" : ""}`} onClick={() => setActiveTab("table")}>
-                    <IconTable />Table
-                  </button>
-                  <button className={`tab-btn ${activeTab === "raw" ? "active" : ""}`} onClick={() => setActiveTab("raw")}>
-                    <IconRaw />RAW
-                  </button>
-                </div>
-                <div className="result-tabs-right">
-                  <button className="icon-btn" title="全屏"><IconMaximize /></button>
-                </div>
-              </div>
-
-              <div className="graph-container">
-                {activeTab === "graph" && (
-                    <>
-                      <GraphCanvas
-                        data={mergedData}
-                        onNodeClick={handleNodeClick}
-                        onEdgeClick={handleEdgeClick}
-                        onCanvasClick={handleCanvasClick}
-                        onNodeRightClick={handleNodeRightClick}
-                        onEdgeRightClick={handleEdgeRightClick}
-                        onGlobalSearch={handleGlobalSearch}
-                      />
-                      <GraphToolbar activeTool={activeTool} setActiveTool={setActiveTool} />
-                      {contextMenu && (
-                        <ContextMenu
-                          contextMenu={contextMenu}
-                          setContextMenu={setContextMenu}
-                          handleMenuItemClick={handleMenuItemClick}
-                          drawingEdgeSource={drawingEdgeSource}
-                          setDrawingEdgeSource={setDrawingEdgeSource}
-                        />
-                      )}
-                      {drawingEdgeSource && (
-                        <div style={{ position: 'absolute', top: 16, left: '50%', transform: 'translateX(-50%)', background: 'var(--brand-primary)', color: '#fff', padding: '8px 16px', borderRadius: 20, fontSize: 13, boxShadow: 'var(--shadow-md)', zIndex: 50, display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span>请点击希望连接的目标节点...</span>
-                          <button onClick={() => {
-                            setDrawingEdgeSource(null);
-                            setActiveTool("pointer");
-                          }} style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', opacity: 0.8, display: 'flex', alignItems: 'center' }}>
-                            <IconX />
-                          </button>
-                        </div>
-                      )}
-                    </>
-                )}
-                {activeTab === "table" && (
-                  <div className="table-view">
-                    {graphData.nodes.length > 0 ? (
-                      <table className="data-table">
-                        <thead>
-                          <tr>
-                            <th>ID</th>
-                            <th>类型</th>
-                            <th>标签/关系</th>
-                            <th>属性</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {graphData.nodes.map((n: any) => (
-                            <tr key={`n-${n.id}`} onClick={() => handleNodeClick(String(n.id))} style={{ cursor: 'pointer' }}>
-                              <td>{n.id}</td>
-                              <td><span className="detail-type-badge node">节点</span></td>
-                              <td>{(n.properties?._labels || []).join(", ")}</td>
-                              <td className="prop-cell">{n.properties?.name || JSON.stringify(n.properties).slice(0, 80)}</td>
-                            </tr>
-                          ))}
-                          {graphData.edges.map((e: any) => (
-                            <tr key={`e-${e.id}`} onClick={() => handleEdgeClick(String(e.id))} style={{ cursor: 'pointer' }}>
-                              <td>{e.id}</td>
-                              <td><span className="detail-type-badge edge">关系</span></td>
-                              <td>{e.label}</td>
-                              <td className="prop-cell">{e.source} → {e.target}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    ) : (
-                      <div className="empty-msg">尚无数据</div>
-                    )}
-                  </div>
-                )}
-                {activeTab === "raw" && (
-                  <div className="table-view">
-                    {graphData.nodes.length > 0 ? (
-                      <pre>{JSON.stringify(graphData, null, 2)}</pre>
-                    ) : (
-                      <div className="empty-msg">尚无数据</div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              <div className="result-footer">
-                {execTime !== null && <span>Started streaming {graphData.nodes.length + graphData.edges.length} records after {execTime} ms</span>}
-              </div>
-            </div>
-
-            {/* 右侧属性详情面板 */}
-            {detail && (
-              <DetailPanel
-                detail={detail}
-                setDetail={setDetail}
-                editingProp={editingProp}
-                setEditingProp={setEditingProp}
-                editValue={editValue}
-                setEditValue={setEditValue}
-                savingProp={savingProp}
-                addingProp={addingProp}
-                setAddingProp={setAddingProp}
-                newPropKey={newPropKey}
-                setNewPropKey={setNewPropKey}
-                newPropValue={newPropValue}
-                setNewPropValue={setNewPropValue}
-                handleSaveProp={handleSaveProp}
-                handleDeleteProp={handleDeleteProp}
-                schemaLabels={schemaLabels}
-                schemaRelTypes={schemaRelTypes}
-                handleSaveTempEntity={handleSaveTempEntity}
-                handleCancelTempEntity={handleCancelTempEntity}
-              />
-            )}
-          </div>
+          <ResultPanel
+            activeTab={activeTab} setActiveTab={setActiveTab}
+            graphData={graphData} mergedData={mergedData} execTime={execTime}
+            detail={detail} setDetail={setDetail}
+            activeTool={activeTool} setActiveTool={setActiveTool}
+            contextMenu={contextMenu} setContextMenu={setContextMenu}
+            drawingEdgeSource={drawingEdgeSource} setDrawingEdgeSource={setDrawingEdgeSource}
+            handleNodeClick={handleNodeClick} handleEdgeClick={handleEdgeClick} handleCanvasClick={handleCanvasClick}
+            handleNodeRightClick={handleNodeRightClick} handleEdgeRightClick={handleEdgeRightClick}
+            handleGlobalSearch={handleGlobalSearch} handleMenuItemClick={handleMenuItemClick}
+            editingProp={editingProp} setEditingProp={setEditingProp}
+            editValue={editValue} setEditValue={setEditValue}
+            savingProp={savingProp} addingProp={addingProp} setAddingProp={setAddingProp}
+            newPropKey={newPropKey} setNewPropKey={setNewPropKey}
+            newPropValue={newPropValue} setNewPropValue={setNewPropValue}
+            handleSaveProp={handleSaveProp} handleDeleteProp={handleDeleteProp}
+            schemaLabels={schemaLabels} schemaRelTypes={schemaRelTypes}
+            handleSaveTempEntity={handleSaveTempEntity} handleCancelTempEntity={handleCancelTempEntity}
+          />
         </div>
       </main>
     </div>

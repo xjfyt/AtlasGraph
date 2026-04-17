@@ -1,4 +1,5 @@
 import React from "react";
+import "./Sidebar.css";
 import { IconDatabase, IconHistory, IconPalette, IconChevronRight, IconChevronLeft } from "./icons";
 
 interface SidebarProps {

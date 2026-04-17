@@ -1,4 +1,5 @@
-import { IconHistory } from "./icons";
+import { IconHistory, IconTrash } from "./icons";
+import "./HistoryView.css";
 
 interface HistoryItem {
   query: string;

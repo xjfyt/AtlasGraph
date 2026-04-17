@@ -1,0 +1,59 @@
+/* ===== 主题切换面板 ===== */
+.theme-panel { padding: 0; }
+.theme-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.theme-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+  text-align: left;
+  width: 100%;
+}
+.theme-option:hover {
+  background: var(--bg-hover);
+  border-color: var(--text-faint);
+}
+.theme-option.active {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+.theme-option-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: var(--bg-tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.theme-option.active .theme-option-icon {
+  background: var(--accent-bg-strong);
+}
+.theme-option-icon svg {
+  width: 18px;
+  height: 18px;
+  color: var(--text-muted);
+}
+.theme-option.active .theme-option-icon svg {
+  color: var(--accent);
+}
+.theme-option-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-heading);
+}
+.theme-option-desc {
+  font-size: 11px;
+  color: var(--text-faint);
+  margin-top: 2px;
+}

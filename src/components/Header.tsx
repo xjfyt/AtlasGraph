@@ -1,4 +1,5 @@
-import { IconPanelLeft } from "./icons";
+import { IconPanelLeft, IconDatabase, IconCloud, IconPlug, IconFolderOpen } from "./icons";
+import "./Header.css";
 
 export interface HeaderProps {
   sidebarCollapsed: boolean;

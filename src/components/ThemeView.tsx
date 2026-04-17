@@ -1,4 +1,5 @@
 import { IconSun, IconMoon, IconMonitor } from "./icons";
+import "./ThemeView.css";
 
 export type ThemeMode = "light" | "dark" | "system";
 

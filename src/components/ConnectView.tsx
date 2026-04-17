@@ -1,4 +1,5 @@
 import { open } from "@tauri-apps/plugin-dialog";
+import "./ConnectView.css";
 import { IconFolderOpen, IconSpinner, IconPlug } from "./icons";
 
 export interface ConnectViewProps {
