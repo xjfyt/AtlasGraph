@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { IconX } from "./icons";
 import { Trash2, PlusCircle } from "lucide-react";
 

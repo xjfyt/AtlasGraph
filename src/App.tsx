@@ -12,7 +12,7 @@ import Header from "./components/Header";
 import ContextMenu from "./components/ContextMenu";
 import DetailPanel from "./components/DetailPanel";
 import GraphToolbar, { ActiveTool } from "./components/GraphToolbar";
-import { IconLayout, IconGraph, IconTable, IconRaw, IconMaximize, IconSpinner, IconPlay, IconX } from "./components/icons";
+import { IconGraph, IconTable, IconRaw, IconMaximize, IconSpinner, IconPlay, IconX } from "./components/icons";
 const GRAPH_COLORS = ["#F4B5BD", "#A5E1D3", "#FCE49E", "#CDB4DB", "#B9E1F9", "#FFDAC1"];
 
 /* ===== 详情类型定义 ===== */
