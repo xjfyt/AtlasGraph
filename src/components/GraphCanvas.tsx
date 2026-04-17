@@ -11,6 +11,7 @@ interface GraphCanvasProps {
   onNodeRightClick?: (nodeId: string, clientX: number, clientY: number) => void;
   onEdgeRightClick?: (edgeId: string, clientX: number, clientY: number) => void;
   onCanvasRightClick?: (clientX: number, clientY: number) => void;
+  onGlobalSearch?: (text: string) => Promise<string[]>;
   selectedEntity?: { type: "node" | "edge"; id: string } | null;
 }
 
@@ -29,20 +30,23 @@ function getLabelColorIndex(labels: string[]): number {
 import { save } from '@tauri-apps/plugin-dialog';
 import { writeFile } from '@tauri-apps/plugin-fs';
 
-export default function GraphCanvas({ 
-  data, 
-  onNodeClick, 
-  onEdgeClick, 
-  onCanvasClick, 
-  onNodeRightClick, 
-  onEdgeRightClick, 
+export default function GraphCanvas({
+  data,
+  onNodeClick,
+  onEdgeClick,
+  onCanvasClick,
+  onNodeRightClick,
+  onEdgeRightClick,
   onCanvasRightClick,
-  selectedEntity: _selectedEntity 
+  onGlobalSearch,
+  selectedEntity: _selectedEntity
 }: GraphCanvasProps) {
   const callbacksRef = useRef({ onNodeClick, onEdgeClick, onCanvasClick, onNodeRightClick, onEdgeRightClick, onCanvasRightClick });
   callbacksRef.current = { onNodeClick, onEdgeClick, onCanvasClick, onNodeRightClick, onEdgeRightClick, onCanvasRightClick };
   const nvlRef = useRef<any>(null);
   const [searchText, setSearchText] = useState("");
+  const [searching, setSearching] = useState(false);
+  const [searchMsg, setSearchMsg] = useState<string | null>(null);
 
   const nvlNodes: Node[] = useMemo(() => {
     return data.nodes.map((n) => {
@@ -64,18 +68,23 @@ export default function GraphCanvas({
   }, [data.nodes]);
 
   const nvlRels: Relationship[] = useMemo(() => {
-    return data.edges.map((e) => {
-      const edgeId = String(e.id || `${e.source}-${e.target}`);
-      
-      return {
-        id: edgeId,
-        from: String(e.source),
-        to: String(e.target),
-        caption: e.label || "",
-        captionSize: 1.8,
-      };
-    });
-  }, [data.edges]);
+    const nodeIdSet = new Set(data.nodes.map((n) => String(n.id)));
+    return data.edges
+      .map((e) => {
+        const from = String(e.source ?? "");
+        const to = String(e.target ?? "");
+        const edgeId = String(e.id || `${from}-${to}`);
+        return {
+          id: edgeId,
+          from,
+          to,
+          caption: e.label || "",
+          captionSize: 1.8,
+        };
+      })
+      // 防御：NVL 在端点为空或未渲染时会抛错 -> React 白屏
+      .filter((r) => r.from && r.to && nodeIdSet.has(r.from) && nodeIdSet.has(r.to));
+  }, [data.edges, data.nodes]);
 
 
 
@@ -131,19 +140,41 @@ export default function GraphCanvas({
   };
 
   const handleFit = useCallback(() => {
-    if (nvlRef.current) {
-      nvlRef.current.fit();
+    if (nvlRef.current && data && data.nodes) {
+      const nodeIds = data.nodes.map((n: any) => String(n.id));
+      if (nodeIds.length > 0) {
+        nvlRef.current.fit(nodeIds);
+      } else {
+        nvlRef.current.fit();
+      }
     }
-  }, []);
+  }, [data]);
 
-  const handleSearch = () => {
+  const handleSearch = async () => {
     if (!searchText.trim() || !nvlRef.current) return;
-    // 不区分大小写匹配节点名称
-    const matchedIds = nvlNodes
-      .filter(n => (n.caption || "").toLowerCase().includes(searchText.toLowerCase()))
-      .map(n => n.id);
-    if (matchedIds.length > 0) {
-      nvlRef.current.fit(matchedIds);
+    setSearching(true);
+    setSearchMsg(null);
+    try {
+      // 先在画布已加载节点中做不区分大小写的匹配
+      const localMatches = nvlNodes
+        .filter(n => (n.caption || "").toLowerCase().includes(searchText.toLowerCase()))
+        .map(n => String(n.id));
+
+      // 再向数据库全局搜索，把命中节点合并进画布
+      const globalMatches = onGlobalSearch ? await onGlobalSearch(searchText) : [];
+      const allMatches = Array.from(new Set([...localMatches, ...globalMatches.map(String)]));
+
+      if (allMatches.length > 0) {
+        // 新节点挂载到 NVL 之前稍作延迟
+        setTimeout(() => {
+          if (nvlRef.current) nvlRef.current.fit(allMatches);
+        }, 200);
+        setSearchMsg(`匹配 ${allMatches.length} 个节点`);
+      } else {
+        setSearchMsg("未找到匹配节点");
+      }
+    } finally {
+      setSearching(false);
     }
   };
 
@@ -153,6 +184,7 @@ export default function GraphCanvas({
 
   const handleClearSearch = () => {
     setSearchText("");
+    setSearchMsg(null);
   };
 
   const handleDownload = async () => {
@@ -243,18 +275,26 @@ export default function GraphCanvas({
           alignItems: "center"
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", background: "#ffffff", border: "1px solid #cbd5e1", borderRadius: 6, padding: "6px 12px", boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}>
-          <Search size={16} color="#64748b" style={{ marginRight: 8, cursor: "pointer" }} onClick={handleSearch} />
-          <input 
-            type="text" 
-            placeholder="搜索实体..." 
-            value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
-            onKeyDown={handleKeyDown}
-            style={{ border: "none", outline: "none", background: "transparent", width: 140, fontSize: 14, color: "#334155" }}
-          />
-          {searchText && (
-            <X size={16} color="#94a3b8" style={{ cursor: "pointer", marginLeft: 4 }} onClick={handleClearSearch} />
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+          <div style={{ display: "flex", alignItems: "center", background: "#ffffff", border: "1px solid #cbd5e1", borderRadius: 6, padding: "6px 12px", boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}>
+            <Search size={16} color={searching ? "#94a3b8" : "#64748b"} style={{ marginRight: 8, cursor: searching ? "default" : "pointer" }} onClick={searching ? undefined : handleSearch} />
+            <input
+              type="text"
+              placeholder="搜索全库实体..."
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              onKeyDown={handleKeyDown}
+              disabled={searching}
+              style={{ border: "none", outline: "none", background: "transparent", width: 160, fontSize: 14, color: "#334155" }}
+            />
+            {searchText && (
+              <X size={16} color="#94a3b8" style={{ cursor: "pointer", marginLeft: 4 }} onClick={handleClearSearch} />
+            )}
+          </div>
+          {(searching || searchMsg) && (
+            <div style={{ background: "rgba(255,255,255,0.95)", border: "1px solid #e2e8f0", borderRadius: 4, padding: "2px 8px", fontSize: 12, color: searchMsg === "未找到匹配节点" ? "#ef4444" : "#64748b", boxShadow: "0 2px 6px rgba(0,0,0,0.05)" }}>
+              {searching ? "搜索中..." : searchMsg}
+            </div>
           )}
         </div>
         <button
