@@ -19,7 +19,7 @@ export default function Sidebar({
   return (
     <>
       <nav className="nav-rail">
-        <div className="nav-logo">咪鼠</div>
+        <img src="/favicon.png" alt="KG" style={{ width: 36, height: 36, marginBottom: 16, borderRadius: 8, objectFit: 'contain', background: 'white' }} />
         <button className={`nav-btn ${activeNav === "database" ? "active" : ""}`} onClick={() => { setActiveNav("database"); setSidebarCollapsed(false); }} title="查询与连接">
           <IconDatabase />
         </button>
@@ -48,7 +48,7 @@ export default function Sidebar({
       >
         <aside className="sidebar">
           <div className="sidebar-header">
-            <h2>咪鼠图谱可视化</h2>
+            <h2>知识图谱可视化工具</h2>
             <button
               className="sidebar-collapse-btn"
               onClick={() => setSidebarCollapsed(true)}

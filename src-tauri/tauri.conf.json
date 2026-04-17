@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "咪鼠图谱可视化",
+  "productName": "知识图谱可视化工具",
   "version": "0.1.0",
   "identifier": "com.xjfyt.graph-viz",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "咪鼠图谱可视化",
+        "title": "知识图谱可视化工具",
         "width": 1024,
         "height": 640,
         "minWidth": 720,

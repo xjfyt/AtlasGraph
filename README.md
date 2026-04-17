@@ -1,4 +1,4 @@
-# 咪鼠图谱可视化 (MiMouse Graph Visualization)
+# 知识图谱可视化工具 (KG Graph Visualization)
 
 基于 [Tauri v2](https://tauri.app/)（Rust 后端）+ React（前端）构建的高性能跨平台知识图谱管理与可视化桌面应用。
 作为一款生产级的图谱应用，本作深度整合了官方强大的 [@neo4j-nvl](https://www.npmjs.com/package/@neo4j-nvl/base) 渲染引擎，支持对图数据的真正全面编辑与管理。
@@ -71,7 +71,7 @@ npm run tauri build
 ```
 
 生成物位于：
-- **可执行文件**：`src-tauri/target/release/咪鼠图谱可视化.exe`
+- **可执行文件**：`src-tauri/target/release/知识图谱可视化工具.exe`
 - **安装包**：`src-tauri/target/release/bundle/` 目录下
 
 ---
