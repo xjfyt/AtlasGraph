@@ -13,8 +13,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # GitHub Actions 原生支持的物理机架构：Mac M芯片, Mac Intel, Linux x86, Linux ARM, Windows x86
-        platform: [macos-14, macos-13, ubuntu-24.04, ubuntu-24.04-arm, windows-latest]
+        # GitHub Actions 原生支持的物理机架构：Mac M芯片, Mac Intel, Linux x86, Linux ARM, Windows x86, Windows ARM
+        platform: [macos-14, macos-13, ubuntu-24.04, ubuntu-24.04-arm, windows-latest, windows-11-arm]
         # 所有可能的 feature 组合，kuzu 和 lbug 已经在逻辑中互斥分离
         features: 
           - 'neo4j'
@@ -98,6 +98,10 @@ jobs:
           PLATFORM_NAME="${{ matrix.platform }}"
           if [[ "$PLATFORM_NAME" == "windows-latest" ]]; then
             OS_ARCH="windows-x86_64"
+            EXE_PATH="src-tauri/target/release/atlas-graph.exe"
+            EXT=".exe"
+          elif [[ "$PLATFORM_NAME" == "windows-11-arm" ]]; then
+            OS_ARCH="windows-arm64"
             EXE_PATH="src-tauri/target/release/atlas-graph.exe"
             EXT=".exe"
           elif [[ "$PLATFORM_NAME" == "macos-14" ]]; then
