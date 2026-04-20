@@ -1,0 +1,87 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*' # 只有在推送类似 v0.1.0 这样的 tag 时才会触发构建
+  workflow_dispatch: # 允许在 GitHub Actions 网站上手动触发
+
+jobs:
+  build:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        # 支持的三大系统环境
+        platform: [macos-latest, ubuntu-22.04, windows-latest]
+        # 所有可能的 feature 组合，kuzu 和 lbug 已经在逻辑中互斥分离
+        features: 
+          - 'neo4j'
+          - 'kuzu'
+          - 'lbug'
+          - 'neo4j,kuzu'
+          - 'neo4j,lbug'
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      # Linux/Ubuntu 必须的编译依赖
+      - name: Install Dependencies (Ubuntu only)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+
+      - name: Modify configs for parallel builds
+        shell: bash
+        run: |
+          # 提取逗号为下划线，作为文件名后缀，比如 neo4j_lbug
+          FEATURES_STR="${{ matrix.features }}"
+          SUFFIX="${FEATURES_STR//,/_}"
+          
+          echo "Building variant: $SUFFIX"
+          
+          # 动态修改 package.json 中的 features 使前端能读取到正确的环境变量或配置
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            pkg.atlasConfig = pkg.atlasConfig || {};
+            pkg.atlasConfig.features = '${FEATURES_STR}'.split(',');
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2));
+          "
+          
+          # 动态修改 productName，防止不同平台下的各个功能组合包名字冲突且互相覆盖
+          node -e "
+            const fs = require('fs');
+            const conf = JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json', 'utf8'));
+            conf.productName = conf.productName + '-' + '${SUFFIX}';
+            fs.writeFileSync('src-tauri/tauri.conf.json', JSON.stringify(conf, null, 2));
+          "
+
+      - name: Install frontend dependencies
+        run: npm install
+
+      # 使用官方 Tauri action 打包
+      - name: Build Tauri and release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          # 读取 tauri.conf.json 中的 version 自动作为版本名
+          tagName: app-v__VERSION__ 
+          releaseName: 'AtlasGraph v__VERSION__'
+          releaseBody: '通过 GitHub Actions 自动构建的多平台、多数据库组合 Release 版本。'
+          releaseDraft: true
+          prerelease: false
+          # 透传特征参数并在最后附带 --no-default-features 至 Cargo
+          args: --features ${{ matrix.features }} -- --no-default-features
