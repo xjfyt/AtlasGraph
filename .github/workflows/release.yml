@@ -71,17 +71,46 @@ jobs:
       - name: Install frontend dependencies
         run: npm install
 
-      # 使用官方 Tauri action 打包
-      - name: Build Tauri and release
+      # 使用官方 Tauri action 打包 (由于它默认只传 bundle，不传原始 exe二进制)
+      - name: Build Tauri and release bundle
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          # 读取 tauri.conf.json 中的 version 自动作为版本名
-          tagName: app-v__VERSION__ 
-          releaseName: 'AtlasGraph v__VERSION__'
+          # 绑定到触发 workflow 的真实 git tag (例如我们刚才打的 v0.1.1)
+          tagName: ${{ github.ref_name }} 
+          releaseName: 'AtlasGraph ${{ github.ref_name }}'
           releaseBody: '通过 GitHub Actions 自动构建的多平台、多数据库组合 Release 版本。'
           releaseDraft: true
           prerelease: false
           # 透传特征参数并在最后附带 --no-default-features 至 Cargo
           args: --features ${{ matrix.features }} -- --no-default-features
+
+      # 追加上传单体/纯净可执行文件 (免安装版)
+      - name: Upload Standalone Executable
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          FEATURES_STR="${{ matrix.features }}"
+          SUFFIX="${FEATURES_STR//,/_}"
+          
+          # 根据不同操作系统寻找单体可执行文件并重命名
+          if [[ "${{ matrix.platform }}" == "windows-latest" ]]; then
+            EXE_PATH="src-tauri/target/release/atlas-graph.exe"
+            NEW_NAME="AtlasGraph-standalone-${SUFFIX}-windows.exe"
+          elif [[ "${{ matrix.platform }}" == "macos-latest" ]]; then
+            EXE_PATH="src-tauri/target/release/atlas-graph"
+            NEW_NAME="AtlasGraph-standalone-${SUFFIX}-macos"
+          else
+            EXE_PATH="src-tauri/target/release/atlas-graph"
+            NEW_NAME="AtlasGraph-standalone-${SUFFIX}-linux"
+          fi
+          
+          if [ -f "$EXE_PATH" ]; then
+            mv "$EXE_PATH" "./$NEW_NAME"
+            echo "Uploading $NEW_NAME to release ${{ github.ref_name }}..."
+            gh release upload ${{ github.ref_name }} "./$NEW_NAME" --clobber
+          else
+            echo "Warning: Standalone executable not found at $EXE_PATH"
+          fi
