@@ -22,6 +22,16 @@ jobs:
           - 'lbug'
           - 'neo4j,kuzu'
           - 'neo4j,lbug'
+        exclude:
+          # kuzu 0.11.3 底部 C++ 强行绑定了 _AMD64_ 宏，导致 MSVC ARM64 编译报错，故剔除
+          - platform: windows-11-arm
+            features: 'kuzu'
+          - platform: windows-11-arm
+            features: 'lbug'
+          - platform: windows-11-arm
+            features: 'neo4j,kuzu'
+          - platform: windows-11-arm
+            features: 'neo4j,lbug'
 
     runs-on: ${{ matrix.platform }}
     steps:
