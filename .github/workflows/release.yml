@@ -13,8 +13,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 支持的三大系统环境
-        platform: [macos-latest, ubuntu-22.04, windows-latest]
+        # 支持的三大系统环境 (Ubuntu 使用 24.04 以提供 GCC 13)
+        platform: [macos-latest, ubuntu-24.04, windows-latest]
         # 所有可能的 feature 组合，kuzu 和 lbug 已经在逻辑中互斥分离
         features: 
           - 'neo4j'
@@ -36,7 +36,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Install Dependencies (Ubuntu only)
-        if: matrix.platform == 'ubuntu-22.04'
+        if: matrix.platform == 'ubuntu-24.04'
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev cmake clang libclang-dev
