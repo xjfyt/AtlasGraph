@@ -136,6 +136,17 @@
   border-color: #86efac;
 }
 
+.connection-note {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #1d4ed8;
+  background: #eff6ff;
+  border: 1px solid #93c5fd;
+}
+
 /* ===== Schema 标签 ===== */
 .schema-section { padding-top: 16px; border-top: 1px solid var(--border-light); }
 .tag-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }

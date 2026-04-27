@@ -15,6 +15,7 @@ export interface ConnectViewProps {
   kuzuPath: string; setKuzuPath: (v: string) => void;
   connected: boolean;
   readOnly: boolean;
+  autoCreatedDb: boolean;
   connecting: boolean;
   connectMsg: { ok: boolean; text: string } | null;
   handleConnect: () => void;
@@ -25,7 +26,7 @@ export interface ConnectViewProps {
 
 export default function ConnectView({
   dbType, setDbType, supportedDbs, uri, setUri, user, setUser, password, setPassword,
-  lbugPath, setLbugPath, kuzuPath, setKuzuPath, connected, readOnly, connecting, connectMsg, handleConnect,
+  lbugPath, setLbugPath, kuzuPath, setKuzuPath, connected, readOnly, autoCreatedDb, connecting, connectMsg, handleConnect,
   databases, selectedDb, setSelectedDb, handleDbSwitch
 }: ConnectViewProps) {
   return (
@@ -81,6 +82,12 @@ export default function ConnectView({
         {connected && (
           <div className={`connection-mode ${readOnly ? "readonly" : "readwrite"}`}>
             当前打开方式: {readOnly ? "只读" : "读写"}
+          </div>
+        )}
+
+        {connected && autoCreatedDb && (
+          <div className="connection-note">
+            当前数据库不存在，已自动创建空库并打开。请先创建 Schema 或导入数据后再查询。
           </div>
         )}
       </div>

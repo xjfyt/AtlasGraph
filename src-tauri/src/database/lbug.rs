@@ -5,6 +5,15 @@ use lbug::{Connection, Database, SystemConfig, Value as LbugValue, NodeVal, RelV
 pub async fn connect(state: &AppState, req: &ConnectRequest) -> Result<ConnectResponse, String> {
     let path = req.lbug_path.as_deref().unwrap_or("").trim();
     if path.is_empty() { return Err("Ladybug 数据库路径不能为空".into()); }
+    let db_path = std::path::Path::new(path);
+
+    if let Some(parent) = db_path.parent() {
+        if !parent.as_os_str().is_empty() && !parent.exists() {
+            std::fs::create_dir_all(parent).map_err(|e| format!("创建数据库目录失败: {}", e))?;
+        }
+    }
+
+    let auto_created = !db_path.exists();
 
     {
         let mut kd = state.lbug_db.lock().await;
@@ -21,7 +30,7 @@ pub async fn connect(state: &AppState, req: &ConnectRequest) -> Result<ConnectRe
             let mut info = state.connection_info.lock().await;
             info.read_only = false;
             drop(info);
-            return finish_connect(state, path, db, false).await;
+            return finish_connect(state, path, db, false, auto_created).await;
         }
         Err(err) => err,
     };
@@ -34,7 +43,7 @@ pub async fn connect(state: &AppState, req: &ConnectRequest) -> Result<ConnectRe
             )
         })?;
 
-    finish_connect(state, path, db, true).await
+    finish_connect(state, path, db, true, auto_created).await
 }
 
 async fn finish_connect(
@@ -42,6 +51,7 @@ async fn finish_connect(
     path: &str,
     db: Database,
     read_only: bool,
+    auto_created: bool,
 ) -> Result<ConnectResponse, String> {
 
     {
@@ -66,13 +76,17 @@ async fn finish_connect(
         }
     }
 
-    let message = if read_only {
+    let message = if auto_created && read_only {
+        format!("目标路径不存在，已自动创建新的 Ladybug 数据库，并以只读模式连接: {}", path)
+    } else if auto_created {
+        format!("目标路径不存在，已自动创建并连接到新的 Ladybug 数据库: {}", path)
+    } else if read_only {
         format!("已以只读模式连接到 Ladybug: {}", path)
     } else {
         format!("已成功连接到 Ladybug: {}", path)
     };
 
-    Ok(ConnectResponse { message, read_only })
+    Ok(ConnectResponse { message, read_only, auto_created })
 }
 
 pub async fn execute(state: &AppState, cypher: &str) -> Result<GraphData, String> {

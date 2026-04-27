@@ -36,6 +36,7 @@ pub async fn connect(state: &AppState, req: &ConnectRequest) -> Result<ConnectRe
     Ok(ConnectResponse {
         message: format!("已成功连接到 Neo4j ({}@{})", database, uri),
         read_only: false,
+        auto_created: false,
     })
 }
 

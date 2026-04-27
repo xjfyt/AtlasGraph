@@ -39,6 +39,7 @@ pub struct QueryRequest {
 pub struct ConnectResponse {
     pub message: String,
     pub read_only: bool,
+    pub auto_created: bool,
 }
 
 #[derive(Serialize, Debug, Clone)]

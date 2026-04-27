@@ -50,6 +50,15 @@
   background: #f0fdf4;
   border-color: #86efac;
 }
+.topbar-note {
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid #93c5fd;
+  font-size: 12px;
+  font-weight: 600;
+  color: #1d4ed8;
+  background: #eff6ff;
+}
 .status-dot {
   width: 8px;
   height: 8px;

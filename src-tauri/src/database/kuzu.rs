@@ -7,16 +7,14 @@ pub async fn connect(state: &AppState, req: &ConnectRequest) -> Result<ConnectRe
     if raw_path.is_empty() { return Err("Kuzu 数据库路径不能为空".into()); }
 
     let db_path = std::path::Path::new(raw_path);
-    let path = if db_path.is_dir() {
-        db_path.join("default.kuzu").to_str().ok_or_else(|| "路径包含非法字符".to_string())?.to_string()
-    } else {
-        if let Some(parent) = db_path.parent() {
-            if !parent.exists() {
-                std::fs::create_dir_all(parent).map_err(|e| format!("创建数据库目录失败: {}", e))?;
-            }
+    if let Some(parent) = db_path.parent() {
+        if !parent.as_os_str().is_empty() && !parent.exists() {
+            std::fs::create_dir_all(parent).map_err(|e| format!("创建数据库目录失败: {}", e))?;
         }
-        raw_path.to_string()
-    };
+    }
+
+    let auto_created = !db_path.exists();
+    let path = raw_path.to_string();
 
     let db = Database::new(&path, SystemConfig::default())
         .map_err(|e| format!("Kuzu Database 初始化失败: {}", e))?;
@@ -35,8 +33,13 @@ pub async fn connect(state: &AppState, req: &ConnectRequest) -> Result<ConnectRe
         info.database = "default".to_string();
     }
     Ok(ConnectResponse {
-        message: format!("已成功连接到 Kuzu: {}", path),
+        message: if auto_created {
+            format!("目标路径不存在，已自动创建并连接到新的 Kuzu 数据库: {}", path)
+        } else {
+            format!("已成功连接到 Kuzu: {}", path)
+        },
         read_only: false,
+        auto_created,
     })
 }
 
