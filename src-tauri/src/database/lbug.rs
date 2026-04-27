@@ -4,6 +4,7 @@ use lbug::{Connection, Database, SystemConfig, Value as LbugValue, NodeVal, RelV
 
 pub async fn connect(state: &AppState, req: &ConnectRequest) -> Result<ConnectResponse, String> {
     let path = req.lbug_path.as_deref().unwrap_or("").trim();
+    let read_only = req.read_only.unwrap_or(false);
     if path.is_empty() { return Err("Ladybug 数据库路径不能为空".into()); }
     let db_path = std::path::Path::new(path);
 
@@ -14,6 +15,10 @@ pub async fn connect(state: &AppState, req: &ConnectRequest) -> Result<ConnectRe
     }
 
     let auto_created = !db_path.exists();
+    if auto_created && read_only {
+        let _ = Database::new(path, SystemConfig::default())
+            .map_err(|e| format!("Ladybug Database 初始化失败: {}", e))?;
+    }
 
     {
         let mut kd = state.lbug_db.lock().await;
@@ -22,28 +27,13 @@ pub async fn connect(state: &AppState, req: &ConnectRequest) -> Result<ConnectRe
     {
         let mut info = state.connection_info.lock().await;
         info.connected = false;
-        info.read_only = false;
+        info.read_only = read_only;
     }
 
-    let rw_err = match Database::new(path, SystemConfig::default()) {
-        Ok(db) => {
-            let mut info = state.connection_info.lock().await;
-            info.read_only = false;
-            drop(info);
-            return finish_connect(state, path, db, false, auto_created).await;
-        }
-        Err(err) => err,
-    };
+    let db = Database::new(path, SystemConfig::default().read_only(read_only))
+        .map_err(|e| format!("Ladybug Database 初始化失败: {}", e))?;
 
-    let db = Database::new(path, SystemConfig::default().read_only(true))
-        .map_err(|ro_err| {
-            format!(
-                "Ladybug Database 初始化失败: {}; 只读打开也失败: {}",
-                rw_err, ro_err
-            )
-        })?;
-
-    finish_connect(state, path, db, true, auto_created).await
+    finish_connect(state, path, db, read_only, auto_created).await
 }
 
 async fn finish_connect(
@@ -68,7 +58,7 @@ async fn finish_connect(
         info.database = "default".to_string();
     }
 
-    {
+    if !auto_created {
         let db_lock = state.lbug_db.lock().await;
         if let Some(db_ref) = db_lock.as_ref() {
             let conn = Connection::new(db_ref).map_err(|e| format!("无法创建验证连接: {}", e))?;

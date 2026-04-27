@@ -13,6 +13,8 @@ export interface ConnectViewProps {
   password: string; setPassword: (v: string) => void;
   lbugPath: string; setLbugPath: (v: string) => void;
   kuzuPath: string; setKuzuPath: (v: string) => void;
+  openReadOnly: boolean;
+  setOpenReadOnly: (v: boolean) => void;
   connected: boolean;
   readOnly: boolean;
   autoCreatedDb: boolean;
@@ -26,7 +28,7 @@ export interface ConnectViewProps {
 
 export default function ConnectView({
   dbType, setDbType, supportedDbs, uri, setUri, user, setUser, password, setPassword,
-  lbugPath, setLbugPath, kuzuPath, setKuzuPath, connected, readOnly, autoCreatedDb, connecting, connectMsg, handleConnect,
+  lbugPath, setLbugPath, kuzuPath, setKuzuPath, openReadOnly, setOpenReadOnly, connected, readOnly, autoCreatedDb, connecting, connectMsg, handleConnect,
   databases, selectedDb, setSelectedDb, handleDbSwitch
 }: ConnectViewProps) {
   return (
@@ -58,10 +60,10 @@ export default function ConnectView({
           <Neo4jForm uri={uri} setUri={setUri} user={user} setUser={setUser} password={password} setPassword={setPassword} selectedDb={selectedDb} setSelectedDb={setSelectedDb} />
         )}
         {dbType === "lbug" && (
-          <LbugForm lbugPath={lbugPath} setLbugPath={setLbugPath} />
+          <LbugForm lbugPath={lbugPath} setLbugPath={setLbugPath} openReadOnly={openReadOnly} setOpenReadOnly={setOpenReadOnly} />
         )}
         {dbType === "kuzu" && (
-          <KuzuForm kuzuPath={kuzuPath} setKuzuPath={setKuzuPath} />
+          <KuzuForm kuzuPath={kuzuPath} setKuzuPath={setKuzuPath} openReadOnly={openReadOnly} setOpenReadOnly={setOpenReadOnly} />
         )}
 
         <button

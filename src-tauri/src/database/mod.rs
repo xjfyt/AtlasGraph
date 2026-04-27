@@ -28,6 +28,7 @@ pub struct ConnectRequest {
     pub lbug_path: Option<String>,
     pub kuzu_path: Option<String>,
     pub database: Option<String>,
+    pub read_only: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

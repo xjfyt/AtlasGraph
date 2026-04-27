@@ -9,6 +9,8 @@ export interface EngineFormProps {
   setLbugPath?: (v: string) => void;
   kuzuPath?: string;
   setKuzuPath?: (v: string) => void;
+  openReadOnly?: boolean;
+  setOpenReadOnly?: (v: boolean) => void;
   selectedDb?: string;
   setSelectedDb?: (v: string) => void;
 }

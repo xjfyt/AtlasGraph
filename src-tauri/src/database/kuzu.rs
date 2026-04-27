@@ -4,6 +4,7 @@ use kuzu::{Connection, Database, SystemConfig, Value as KuzuValue, NodeVal, RelV
 
 pub async fn connect(state: &AppState, req: &ConnectRequest) -> Result<ConnectResponse, String> {
     let raw_path = req.kuzu_path.as_deref().unwrap_or("").trim();
+    let read_only = req.read_only.unwrap_or(false);
     if raw_path.is_empty() { return Err("Kuzu 数据库路径不能为空".into()); }
 
     let db_path = std::path::Path::new(raw_path);
@@ -16,7 +17,12 @@ pub async fn connect(state: &AppState, req: &ConnectRequest) -> Result<ConnectRe
     let auto_created = !db_path.exists();
     let path = raw_path.to_string();
 
-    let db = Database::new(&path, SystemConfig::default())
+    if auto_created && read_only {
+        let _ = Database::new(&path, SystemConfig::default())
+            .map_err(|e| format!("Kuzu Database 初始化失败: {}", e))?;
+    }
+
+    let db = Database::new(&path, SystemConfig::default().read_only(read_only))
         .map_err(|e| format!("Kuzu Database 初始化失败: {}", e))?;
 
     {
@@ -28,17 +34,21 @@ pub async fn connect(state: &AppState, req: &ConnectRequest) -> Result<ConnectRe
         info.is_neo4j = false;
         info.db_type = "kuzu".to_string();
         info.connected = true;
-        info.read_only = false;
+        info.read_only = read_only;
         info.path = path.to_string();
         info.database = "default".to_string();
     }
     Ok(ConnectResponse {
-        message: if auto_created {
+        message: if auto_created && read_only {
+            format!("目标路径不存在，已自动创建新的 Kuzu 数据库，并以只读模式连接: {}", path)
+        } else if auto_created {
             format!("目标路径不存在，已自动创建并连接到新的 Kuzu 数据库: {}", path)
+        } else if read_only {
+            format!("已以只读模式连接到 Kuzu: {}", path)
         } else {
             format!("已成功连接到 Kuzu: {}", path)
         },
-        read_only: false,
+        read_only,
         auto_created,
     })
 }

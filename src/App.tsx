@@ -78,6 +78,7 @@ function App() {
   const [connected, setConnected] = useState(false);
   const [readOnly, setReadOnly] = useState(false);
   const [autoCreatedDb, setAutoCreatedDb] = useState(false);
+  const [openReadOnly, setOpenReadOnly] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [connectMsg, setConnectMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const connectIdRef = useRef(0);
@@ -207,6 +208,7 @@ function App() {
           lbug_path: dbType === "lbug" ? lbugPath : null,
           kuzu_path: dbType === "kuzu" ? kuzuPath : null,
           database: dbType === "neo4j" ? (selectedDb || "neo4j") : "default",
+          read_only: dbType === "neo4j" ? false : openReadOnly,
         },
       });
       if (currentId !== connectIdRef.current) return;
@@ -904,6 +906,7 @@ function App() {
             <ConnectView
               dbType={dbType} setDbType={setDbType} supportedDbs={supportedDbs} uri={uri} setUri={setUri} user={user} setUser={setUser}
               password={password} setPassword={setPassword} lbugPath={lbugPath} setLbugPath={setLbugPath} kuzuPath={kuzuPath} setKuzuPath={setKuzuPath}
+              openReadOnly={openReadOnly} setOpenReadOnly={setOpenReadOnly}
               connected={connected} readOnly={readOnly} autoCreatedDb={autoCreatedDb} connecting={connecting} connectMsg={connectMsg} handleConnect={handleConnect}
               databases={databases} selectedDb={selectedDb} setSelectedDb={setSelectedDb} handleDbSwitch={handleDbSwitch}
             />
