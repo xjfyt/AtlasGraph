@@ -36,6 +36,12 @@ pub struct QueryRequest {
 }
 
 #[derive(Serialize, Debug, Clone)]
+pub struct ConnectResponse {
+    pub message: String,
+    pub read_only: bool,
+}
+
+#[derive(Serialize, Debug, Clone)]
 pub struct GraphData {
     pub nodes: Vec<GraphNode>,
     pub edges: Vec<GraphEdge>,
@@ -93,6 +99,7 @@ pub struct AppState {
 pub struct ConnectionInfo {
     pub is_neo4j: bool,
     pub connected: bool,
+    pub read_only: bool,
     pub db_type: String,
     pub uri: String,
     pub user: String,
@@ -116,7 +123,7 @@ impl AppState {
 
 // ===== Facade 门面方法 =====
 
-pub async fn connect(state: &AppState, req: &ConnectRequest) -> Result<String, String> {
+pub async fn connect(state: &AppState, req: &ConnectRequest) -> Result<ConnectResponse, String> {
     let db_type = req.db_type.clone().unwrap_or_else(|| {
         if req.is_neo4j { "neo4j".to_string() } else { "lbug".to_string() }
     });

@@ -16,6 +16,11 @@ const GRAPH_COLORS = ["#F4B5BD", "#A5E1D3", "#FCE49E", "#CDB4DB", "#B9E1F9", "#F
 import { toCypherLiteral, parseUserValue, lbugOffset, friendlyDbError } from "./utils/dbUtils";
 import { DetailInfo, HistoryItem, ThemeMode, ContextMenuState } from "./types";
 
+type ConnectResponse = {
+  message: string;
+  read_only: boolean;
+};
+
 function App() {
   useEffect(() => {
     // 等待 React 挂载完成后再显示窗口，避免白屏闪烁
@@ -70,6 +75,7 @@ function App() {
 
   // 连接状态
   const [connected, setConnected] = useState(false);
+  const [readOnly, setReadOnly] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [connectMsg, setConnectMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const connectIdRef = useRef(0);
@@ -176,16 +182,18 @@ function App() {
     if (connecting) {
       connectIdRef.current += 1;
       setConnecting(false);
+      setReadOnly(false);
       setConnectMsg({ ok: false, text: "已取消连接" });
       return;
     }
 
     const currentId = ++connectIdRef.current;
     setConnecting(true);
+    setReadOnly(false);
     setConnectMsg(null);
     setDatabases([]);
     try {
-      const msg: any = await invoke("connect_db", {
+      const resp = await invoke<ConnectResponse>("connect_db", {
         request: {
           is_neo4j: dbType === "neo4j",
           db_type: dbType,
@@ -199,7 +207,8 @@ function App() {
       });
       if (currentId !== connectIdRef.current) return;
       setConnected(true);
-      setConnectMsg({ ok: true, text: String(msg) });
+      setReadOnly(Boolean(resp.read_only));
+      setConnectMsg({ ok: true, text: String(resp.message) });
 
       try {
         const dbs: any = await invoke("list_databases");
@@ -215,6 +224,7 @@ function App() {
     } catch (err: any) {
       if (currentId !== connectIdRef.current) return;
       setConnected(false);
+      setReadOnly(false);
       setConnectMsg({ ok: false, text: friendlyDbError(err) });
     } finally {
       if (currentId === connectIdRef.current) {
@@ -226,6 +236,7 @@ function App() {
   // 切换引擎时重置连接状态
   useEffect(() => {
     setConnected(false);
+    setReadOnly(false);
     setConnectMsg(null);
     setDatabases([]);
     setGraphData({ nodes: [], edges: [] });
@@ -880,7 +891,7 @@ function App() {
             <ConnectView
               dbType={dbType} setDbType={setDbType} supportedDbs={supportedDbs} uri={uri} setUri={setUri} user={user} setUser={setUser}
               password={password} setPassword={setPassword} lbugPath={lbugPath} setLbugPath={setLbugPath} kuzuPath={kuzuPath} setKuzuPath={setKuzuPath}
-              connected={connected} connecting={connecting} connectMsg={connectMsg} handleConnect={handleConnect}
+              connected={connected} readOnly={readOnly} connecting={connecting} connectMsg={connectMsg} handleConnect={handleConnect}
               databases={databases} selectedDb={selectedDb} setSelectedDb={setSelectedDb} handleDbSwitch={handleDbSwitch}
             />
             {/* 替换原数据模式概览的图谱概览 */}
@@ -957,7 +968,7 @@ function App() {
       <main className="main-area">
         <Header 
           sidebarCollapsed={sidebarCollapsed} setSidebarCollapsed={setSidebarCollapsed}
-          connected={connected} dbType={dbType} uri={uri} lbugPath={lbugPath}
+          connected={connected} readOnly={readOnly} dbType={dbType} uri={uri} lbugPath={lbugPath}
           databases={databases} selectedDb={selectedDb} user={user}
         />
 

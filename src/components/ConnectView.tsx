@@ -14,6 +14,7 @@ export interface ConnectViewProps {
   lbugPath: string; setLbugPath: (v: string) => void;
   kuzuPath: string; setKuzuPath: (v: string) => void;
   connected: boolean;
+  readOnly: boolean;
   connecting: boolean;
   connectMsg: { ok: boolean; text: string } | null;
   handleConnect: () => void;
@@ -24,7 +25,7 @@ export interface ConnectViewProps {
 
 export default function ConnectView({
   dbType, setDbType, supportedDbs, uri, setUri, user, setUser, password, setPassword,
-  lbugPath, setLbugPath, kuzuPath, setKuzuPath, connected, connecting, connectMsg, handleConnect,
+  lbugPath, setLbugPath, kuzuPath, setKuzuPath, connected, readOnly, connecting, connectMsg, handleConnect,
   databases, selectedDb, setSelectedDb, handleDbSwitch
 }: ConnectViewProps) {
   return (
@@ -74,6 +75,12 @@ export default function ConnectView({
         {connectMsg && (
           <div className={`connect-status ${connectMsg.ok ? "success" : "error"}`}>
             {connectMsg.ok ? "✓" : "✗"} {connectMsg.text}
+          </div>
+        )}
+
+        {connected && (
+          <div className={`connection-mode ${readOnly ? "readonly" : "readwrite"}`}>
+            当前打开方式: {readOnly ? "只读" : "读写"}
           </div>
         )}
       </div>

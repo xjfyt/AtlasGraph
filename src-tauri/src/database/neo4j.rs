@@ -1,8 +1,8 @@
-use super::{AppState, ConnectRequest, DatabaseInfo, GraphData, GraphEdge, GraphNode, ItemCount, SchemaStats};
+use super::{AppState, ConnectRequest, ConnectResponse, DatabaseInfo, GraphData, GraphEdge, GraphNode, ItemCount, SchemaStats};
 use neo4rs::{query, BoltType, ConfigBuilder, Graph};
 use serde_json::{json, Value};
 
-pub async fn connect(state: &AppState, req: &ConnectRequest) -> Result<String, String> {
+pub async fn connect(state: &AppState, req: &ConnectRequest) -> Result<ConnectResponse, String> {
     let uri = req.uri.as_deref().unwrap_or("").trim();
     let user = req.user.as_deref().unwrap_or("neo4j").trim();
     let password = req.password.as_deref().unwrap_or("").trim();
@@ -28,11 +28,15 @@ pub async fn connect(state: &AppState, req: &ConnectRequest) -> Result<String, S
         info.is_neo4j = true;
         info.db_type = "neo4j".to_string();
         info.connected = true;
+        info.read_only = false;
         info.uri = uri.to_string();
         info.user = user.to_string();
         info.database = database.to_string();
     }
-    Ok(format!("已成功连接到 Neo4j ({}@{})", database, uri))
+    Ok(ConnectResponse {
+        message: format!("已成功连接到 Neo4j ({}@{})", database, uri),
+        read_only: false,
+    })
 }
 
 pub async fn execute(state: &AppState, cypher: &str) -> Result<GraphData, String> {

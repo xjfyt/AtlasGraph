@@ -20,6 +20,16 @@ The current version natively supports the following three major graph driving en
 - **[Ladybug](https://github.com/ladybugdb/ladybugdb)**: A high-performance local embedded native relational graph database.
 - **[Kuzu](https://github.com/kuzudb/kuzu)**: A local embedded analytical ultra-fast relational graph database.
 
+> 💡 **Ladybug open-mode behavior**:
+> The app first tries to open a local Ladybug database in normal read-write mode.
+> If that fails, it automatically falls back and retries in **read-only mode**.
+> After a successful connection, both the sidebar connection panel and the top status bar show whether the current session is `read-write` or `read-only`.
+> In read-only mode, queries and graph browsing still work, but write operations are rejected by the underlying database.
+>
+> ⚠️ **Concurrency limitation**:
+> Ladybug does not support opening the same database as "one read-write instance + other read-only instances" at the same time; only "one read-write instance" or "multiple read-only instances" are allowed.
+> If a read-write process is already running, the read-only fallback will also fail. Close all read-write processes using that database and try again.
+
 <br>
 
 ### 1.2 Visualization & Editing Features

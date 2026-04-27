@@ -1,8 +1,8 @@
-use super::{AppState, ConnectRequest, GraphData, GraphEdge, GraphNode, ItemCount, SchemaStats};
+use super::{AppState, ConnectRequest, ConnectResponse, GraphData, GraphEdge, GraphNode, ItemCount, SchemaStats};
 use serde_json::{json, Value};
 use lbug::{Connection, Database, SystemConfig, Value as LbugValue, NodeVal, RelVal};
 
-pub async fn connect(state: &AppState, req: &ConnectRequest) -> Result<String, String> {
+pub async fn connect(state: &AppState, req: &ConnectRequest) -> Result<ConnectResponse, String> {
     let path = req.lbug_path.as_deref().unwrap_or("").trim();
     if path.is_empty() { return Err("Ladybug 数据库路径不能为空".into()); }
 
@@ -13,10 +13,36 @@ pub async fn connect(state: &AppState, req: &ConnectRequest) -> Result<String, S
     {
         let mut info = state.connection_info.lock().await;
         info.connected = false;
+        info.read_only = false;
     }
 
-    let db = Database::new(path, SystemConfig::default())
-        .map_err(|e| format!("Ladybug Database 初始化失败: {}", e))?;
+    let rw_err = match Database::new(path, SystemConfig::default()) {
+        Ok(db) => {
+            let mut info = state.connection_info.lock().await;
+            info.read_only = false;
+            drop(info);
+            return finish_connect(state, path, db, false).await;
+        }
+        Err(err) => err,
+    };
+
+    let db = Database::new(path, SystemConfig::default().read_only(true))
+        .map_err(|ro_err| {
+            format!(
+                "Ladybug Database 初始化失败: {}; 只读打开也失败: {}",
+                rw_err, ro_err
+            )
+        })?;
+
+    finish_connect(state, path, db, true).await
+}
+
+async fn finish_connect(
+    state: &AppState,
+    path: &str,
+    db: Database,
+    read_only: bool,
+) -> Result<ConnectResponse, String> {
 
     {
         let mut kd = state.lbug_db.lock().await;
@@ -27,6 +53,7 @@ pub async fn connect(state: &AppState, req: &ConnectRequest) -> Result<String, S
         info.is_neo4j = false;
         info.db_type = "lbug".to_string();
         info.connected = true;
+        info.read_only = read_only;
         info.path = path.to_string();
         info.database = "default".to_string();
     }
@@ -39,7 +66,13 @@ pub async fn connect(state: &AppState, req: &ConnectRequest) -> Result<String, S
         }
     }
 
-    Ok(format!("已成功连接到 Ladybug: {}", path))
+    let message = if read_only {
+        format!("已以只读模式连接到 Ladybug: {}", path)
+    } else {
+        format!("已成功连接到 Ladybug: {}", path)
+    };
+
+    Ok(ConnectResponse { message, read_only })
 }
 
 pub async fn execute(state: &AppState, cypher: &str) -> Result<GraphData, String> {

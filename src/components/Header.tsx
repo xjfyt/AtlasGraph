@@ -5,6 +5,7 @@ export interface HeaderProps {
   sidebarCollapsed: boolean;
   setSidebarCollapsed: (v: boolean) => void;
   connected: boolean;
+  readOnly: boolean;
   dbType: string;
   uri: string;
   lbugPath: string;
@@ -14,7 +15,7 @@ export interface HeaderProps {
 }
 
 export default function Header({
-  sidebarCollapsed, setSidebarCollapsed, connected, dbType, uri, lbugPath, databases, selectedDb, user
+  sidebarCollapsed, setSidebarCollapsed, connected, readOnly, dbType, uri, lbugPath, databases, selectedDb, user
 }: HeaderProps) {
   return (
     <div className="topbar">
@@ -41,6 +42,11 @@ export default function Header({
           <div className="topbar-db-info">
             <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>User:</span>
             <span style={{ fontSize: 12, fontWeight: 500 }}>{user}</span>
+          </div>
+        )}
+        {connected && (
+          <div className={`topbar-mode ${readOnly ? "readonly" : "readwrite"}`}>
+            {readOnly ? "只读" : "读写"}
           </div>
         )}
       </div>

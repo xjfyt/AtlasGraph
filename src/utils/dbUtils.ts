@@ -54,7 +54,7 @@ export function friendlyDbError(err: any): string {
     return `Ladybug 该 NODE TABLE 需要主键属性，但当前 CREATE 未提供。${s}`;
   }
   if (/Could not set lock on file/i.test(s)) {
-    return `Ladybug 数据库文件被占用：可能其他进程或本程序的旧连接仍持有锁。请关闭后重试。`;
+    return "Ladybug 数据库已被其他实例占用。Ladybug 的并发限制是：同一数据库同一时刻只能存在 1 个读写实例，或多个只读实例，不能在已有读写实例运行时再附加只读实例。请关闭当前占用该数据库的读写进程后重试。";
   }
   return s;
 }

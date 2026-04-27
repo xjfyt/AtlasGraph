@@ -33,6 +33,23 @@
   border-radius: 6px;
   border: 1px solid var(--border);
 }
+.topbar-mode {
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 600;
+}
+.topbar-mode.readonly {
+  color: #b45309;
+  background: #fff7ed;
+  border-color: #fdba74;
+}
+.topbar-mode.readwrite {
+  color: #166534;
+  background: #f0fdf4;
+  border-color: #86efac;
+}
 .status-dot {
   width: 8px;
   height: 8px;

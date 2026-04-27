@@ -114,6 +114,28 @@
   border: 1px solid var(--error-border);
 }
 
+.connection-mode {
+  margin-top: 10px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+}
+
+.connection-mode.readonly {
+  color: #b45309;
+  background: #fff7ed;
+  border-color: #fdba74;
+}
+
+.connection-mode.readwrite {
+  color: #166534;
+  background: #f0fdf4;
+  border-color: #86efac;
+}
+
 /* ===== Schema 标签 ===== */
 .schema-section { padding-top: 16px; border-top: 1px solid var(--border-light); }
 .tag-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }

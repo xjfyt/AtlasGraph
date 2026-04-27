@@ -1,8 +1,8 @@
-use super::{AppState, ConnectRequest, GraphData, GraphEdge, GraphNode, ItemCount, SchemaStats};
+use super::{AppState, ConnectRequest, ConnectResponse, GraphData, GraphEdge, GraphNode, ItemCount, SchemaStats};
 use serde_json::{json, Value};
 use kuzu::{Connection, Database, SystemConfig, Value as KuzuValue, NodeVal, RelVal};
 
-pub async fn connect(state: &AppState, req: &ConnectRequest) -> Result<String, String> {
+pub async fn connect(state: &AppState, req: &ConnectRequest) -> Result<ConnectResponse, String> {
     let raw_path = req.kuzu_path.as_deref().unwrap_or("").trim();
     if raw_path.is_empty() { return Err("Kuzu 数据库路径不能为空".into()); }
 
@@ -30,10 +30,14 @@ pub async fn connect(state: &AppState, req: &ConnectRequest) -> Result<String, S
         info.is_neo4j = false;
         info.db_type = "kuzu".to_string();
         info.connected = true;
+        info.read_only = false;
         info.path = path.to_string();
         info.database = "default".to_string();
     }
-    Ok(format!("已成功连接到 Kuzu: {}", path))
+    Ok(ConnectResponse {
+        message: format!("已成功连接到 Kuzu: {}", path),
+        read_only: false,
+    })
 }
 
 pub async fn execute(state: &AppState, cypher: &str) -> Result<GraphData, String> {

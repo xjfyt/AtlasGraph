@@ -1,6 +1,6 @@
 pub mod database;
 
-use database::{AppState, ConnectRequest, DatabaseInfo, GraphData, QueryRequest, SchemaStats};
+use database::{AppState, ConnectRequest, ConnectResponse, DatabaseInfo, GraphData, QueryRequest, SchemaStats};
 use tauri::State;
 
 #[tauri::command]
@@ -22,7 +22,7 @@ async fn get_supported_dbs() -> Result<Vec<String>, String> {
 async fn connect_db(
     state: State<'_, AppState>,
     request: ConnectRequest,
-) -> Result<String, String> {
+) -> Result<ConnectResponse, String> {
     database::connect(&state, &request).await
 }
 
