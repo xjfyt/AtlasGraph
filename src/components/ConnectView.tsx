@@ -72,7 +72,7 @@ export default function ConnectView({
           style={connecting ? { background: 'var(--bg-secondary)', color: 'var(--text-muted)', border: '1px solid var(--border)' } : {}}
         >
           {connecting ? <IconSpinner /> : <IconPlug />}
-          {connecting ? "连接中... (点击取消)" : "连接"}
+          {connecting ? "连接中... (点击取消)" : connected ? "断开" : "连接"}
         </button>
 
         {connectMsg && (

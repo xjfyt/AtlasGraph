@@ -22,6 +22,34 @@ type ConnectResponse = {
   auto_created: boolean;
 };
 
+type DatabaseItem = {
+  name: string;
+  is_default: boolean;
+  status: string;
+};
+
+type EngineConnectionState = {
+  connected: boolean;
+  readOnly: boolean;
+  autoCreatedDb: boolean;
+  openReadOnly: boolean;
+  connecting: boolean;
+  connectMsg: { ok: boolean; text: string } | null;
+  databases: DatabaseItem[];
+  selectedDb: string;
+};
+
+const createEngineState = (engine: string): EngineConnectionState => ({
+  connected: false,
+  readOnly: false,
+  autoCreatedDb: false,
+  openReadOnly: false,
+  connecting: false,
+  connectMsg: null,
+  databases: [],
+  selectedDb: engine === "neo4j" ? "neo4j" : "default",
+});
+
 function App() {
   useEffect(() => {
     // 等待 React 挂载完成后再显示窗口，避免白屏闪烁
@@ -75,21 +103,43 @@ function App() {
   }, []);
 
   // 连接状态
-  const [connected, setConnected] = useState(false);
-  const [readOnly, setReadOnly] = useState(false);
-  const [autoCreatedDb, setAutoCreatedDb] = useState(false);
-  const [openReadOnly, setOpenReadOnly] = useState(false);
-  const [connecting, setConnecting] = useState(false);
-  const [connectMsg, setConnectMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const connectIdRef = useRef(0);
+  const [engineStates, setEngineStates] = useState<Record<string, EngineConnectionState>>({
+    neo4j: createEngineState("neo4j"),
+    lbug: createEngineState("lbug"),
+    kuzu: createEngineState("kuzu"),
+  });
+  const connectIdRef = useRef<Record<string, number>>({});
   const queryIdRef = useRef(0);
 
   // 侧边导航栏
   const [activeNav, setActiveNav] = useState("database");
 
   // 多数据库
-  const [databases, setDatabases] = useState<{ name: string; is_default: boolean; status: string }[]>([]);
-  const [selectedDb, setSelectedDb] = useState("neo4j");
+  const currentEngineState = engineStates[dbType] ?? createEngineState(dbType);
+  const connected = currentEngineState.connected;
+  const readOnly = currentEngineState.readOnly;
+  const autoCreatedDb = currentEngineState.autoCreatedDb;
+  const openReadOnly = currentEngineState.openReadOnly;
+  const connecting = currentEngineState.connecting;
+  const connectMsg = currentEngineState.connectMsg;
+  const databases = currentEngineState.databases;
+  const selectedDb = currentEngineState.selectedDb;
+
+  const updateEngineState = useCallback((engine: string, patch: Partial<EngineConnectionState>) => {
+    setEngineStates(prev => ({
+      ...prev,
+      [engine]: {
+        ...(prev[engine] ?? createEngineState(engine)),
+        ...patch,
+      },
+    }));
+  }, []);
+  const setOpenReadOnly = useCallback((value: boolean) => {
+    updateEngineState(dbType, { openReadOnly: value });
+  }, [dbType, updateEngineState]);
+  const setSelectedDb = useCallback((value: string) => {
+    updateEngineState(dbType, { selectedDb: value });
+  }, [dbType, updateEngineState]);
 
   // 查询
   const [query, setQuery] = useState("MATCH (a)-[r]->(b) RETURN a, r, b LIMIT 25");
@@ -170,9 +220,9 @@ function App() {
   }, [sidebarWidth]);
 
   // ===== 获取 Schema =====
-  const fetchSchema = async () => {
+  const fetchSchema = async (engine: string = dbType) => {
     try {
-      const stats: any = await invoke("get_schema_stats");
+      const stats: any = await invoke("get_schema_stats", { dbType: engine });
       setSchemaStats(stats);
       setSchemaLabels(stats.labels.map((l: any) => l.name));
       setSchemaRelTypes(stats.rel_types.map((t: any) => t.name));
@@ -180,93 +230,138 @@ function App() {
 
   };
 
+  const executeCypher = useCallback(async (queryText: string, engine: string = dbType) => {
+    return invoke("execute_cypher", {
+      request: { query: queryText, db_type: engine },
+    });
+  }, [dbType]);
+
   // ===== 连接数据库 =====
   const handleConnect = async () => {
-    if (connecting) {
-      connectIdRef.current += 1;
-      setConnecting(false);
-      setReadOnly(false);
-      setAutoCreatedDb(false);
-      setConnectMsg({ ok: false, text: "已取消连接" });
+    const engine = dbType;
+    const state = engineStates[engine] ?? createEngineState(engine);
+
+    if (state.connecting) {
+      connectIdRef.current[engine] = (connectIdRef.current[engine] ?? 0) + 1;
+      updateEngineState(engine, {
+        connecting: false,
+        readOnly: false,
+        autoCreatedDb: false,
+        connectMsg: { ok: false, text: "已取消连接" },
+      });
       return;
     }
 
-    const currentId = ++connectIdRef.current;
-    setConnecting(true);
-    setReadOnly(false);
-    setAutoCreatedDb(false);
-    setConnectMsg(null);
-    setDatabases([]);
+    if (state.connected) {
+      try {
+        const message = await invoke<string>("disconnect_db", { dbType: engine });
+        updateEngineState(engine, {
+          connected: false,
+          readOnly: false,
+          autoCreatedDb: false,
+          connecting: false,
+          connectMsg: { ok: true, text: String(message) },
+          databases: [],
+          selectedDb: engine === "neo4j" ? "neo4j" : "default",
+        });
+        setGraphData({ nodes: [], edges: [] });
+        setTempData({ nodes: [], edges: [] });
+        setSchemaStats(null);
+        setSchemaLabels([]);
+        setSchemaRelTypes([]);
+        setError("");
+      } catch (err: any) {
+        updateEngineState(engine, {
+          connectMsg: { ok: false, text: friendlyDbError(err) },
+        });
+      }
+      return;
+    }
+
+    const currentId = (connectIdRef.current[engine] ?? 0) + 1;
+    connectIdRef.current[engine] = currentId;
+    updateEngineState(engine, {
+      connecting: true,
+      readOnly: false,
+      autoCreatedDb: false,
+      connectMsg: null,
+      databases: [],
+    });
     try {
       const resp = await invoke<ConnectResponse>("connect_db", {
         request: {
-          is_neo4j: dbType === "neo4j",
-          db_type: dbType,
-          uri: dbType === "neo4j" ? uri : null,
-          user: dbType === "neo4j" ? user : null,
-          password: dbType === "neo4j" ? password : null,
-          lbug_path: dbType === "lbug" ? lbugPath : null,
-          kuzu_path: dbType === "kuzu" ? kuzuPath : null,
-          database: dbType === "neo4j" ? (selectedDb || "neo4j") : "default",
-          read_only: dbType === "neo4j" ? false : openReadOnly,
+          is_neo4j: engine === "neo4j",
+          db_type: engine,
+          uri: engine === "neo4j" ? uri : null,
+          user: engine === "neo4j" ? user : null,
+          password: engine === "neo4j" ? password : null,
+          lbug_path: engine === "lbug" ? lbugPath : null,
+          kuzu_path: engine === "kuzu" ? kuzuPath : null,
+          database: engine === "neo4j" ? (state.selectedDb || "neo4j") : "default",
+          read_only: engine === "neo4j" ? false : state.openReadOnly,
         },
       });
-      if (currentId !== connectIdRef.current) return;
-      setConnected(true);
-      setReadOnly(Boolean(resp.read_only));
-      setAutoCreatedDb(Boolean(resp.auto_created));
-      setConnectMsg({ ok: true, text: String(resp.message) });
+      if (currentId !== connectIdRef.current[engine]) return;
+      updateEngineState(engine, {
+        connected: true,
+        readOnly: Boolean(resp.read_only),
+        autoCreatedDb: Boolean(resp.auto_created),
+        connectMsg: { ok: true, text: String(resp.message) },
+      });
 
       try {
-        const dbs: any = await invoke("list_databases");
-        if (currentId !== connectIdRef.current) return;
-        setDatabases(dbs);
+        const dbs: any = await invoke("list_databases", { dbType: engine });
+        if (currentId !== connectIdRef.current[engine]) return;
         const def = dbs.find((d: any) => d.is_default);
-        if (def) setSelectedDb(def.name);
+        updateEngineState(engine, {
+          databases: dbs,
+          selectedDb: def?.name || (engine === "neo4j" ? state.selectedDb || "neo4j" : "default"),
+        });
       } catch (_) { /* ignore */ }
 
-      await fetchSchema();
+      await fetchSchema(engine);
       if (!resp.auto_created) {
         // 连接已有数据库后，自动执行初始化查询
-        handleExecute("MATCH p=()-[]->() RETURN p LIMIT 25;");
+        handleExecute("MATCH p=()-[]->() RETURN p LIMIT 25;", engine);
       } else {
         setGraphData({ nodes: [], edges: [] });
         setTempData({ nodes: [], edges: [] });
         setError("");
       }
     } catch (err: any) {
-      if (currentId !== connectIdRef.current) return;
-      setConnected(false);
-      setReadOnly(false);
-      setAutoCreatedDb(false);
-      setConnectMsg({ ok: false, text: friendlyDbError(err) });
+      if (currentId !== connectIdRef.current[engine]) return;
+      updateEngineState(engine, {
+        connected: false,
+        readOnly: false,
+        autoCreatedDb: false,
+        connectMsg: { ok: false, text: friendlyDbError(err) },
+      });
     } finally {
-      if (currentId === connectIdRef.current) {
-        setConnecting(false);
+      if (currentId === connectIdRef.current[engine]) {
+        updateEngineState(engine, { connecting: false });
       }
     }
   };
 
-  // 切换引擎时重置连接状态
+  // 切换引擎时只刷新当前视图，不断开其他连接
   useEffect(() => {
-    setConnected(false);
-    setReadOnly(false);
-    setAutoCreatedDb(false);
-    setConnectMsg(null);
-    setDatabases([]);
     setGraphData({ nodes: [], edges: [] });
     setTempData({ nodes: [], edges: [] });
-    setSelectedDb(dbType === "neo4j" ? "neo4j" : "default");
+    setError("");
+    setSchemaStats(null);
     setSchemaLabels([]);
     setSchemaRelTypes([]);
+    if (connected) {
+      fetchSchema(dbType);
+    }
   }, [dbType]);
 
   // ===== 切换数据库 =====
   const handleDbSwitch = async (dbName: string) => {
-    setSelectedDb(dbName);
+    updateEngineState(dbType, { selectedDb: dbName });
     try {
-      await invoke("switch_database", { dbName });
-      fetchSchema();
+      await invoke("switch_database", { dbType, dbName });
+      fetchSchema(dbType);
     } catch (_) { /* ignore */ }
   };
 
@@ -306,11 +401,11 @@ function App() {
   };
 
   // ===== 执行查询 =====
-  const handleExecute = async (override?: string | any) => {
+  const handleExecute = async (override?: string | any, engine: string = dbType) => {
     const q = typeof override === "string" ? override : query;
     if (!q.trim()) return;
 
-    if (typeof override === "string") setQuery(q);
+    if (typeof override === "string" && engine === dbType) setQuery(q);
     const myId = ++queryIdRef.current;
     setLoading(true);
     setError("");
@@ -320,9 +415,7 @@ function App() {
     setTempData({ nodes: [], edges: [] });
     const t0 = performance.now();
     try {
-      const result: any = await invoke("execute_cypher", {
-        request: { query: q },
-      });
+      const result: any = await executeCypher(q, engine);
       // 防止旧请求覆盖新请求
       if (myId !== queryIdRef.current) return;
       setGraphData(mergeGraphData({ nodes: [], edges: [] }, result));
@@ -490,7 +583,7 @@ function App() {
           }
         }
         try {
-          await invoke("execute_cypher", { request: { query: delQuery } });
+          await executeCypher(delQuery);
           if (type === "node") {
             setGraphData(prev => ({
               nodes: prev.nodes.filter(n => String(n.id) !== String(id)),
@@ -534,9 +627,7 @@ function App() {
       }
       setLoading(true);
       try {
-        const result: any = await invoke("execute_cypher", {
-          request: { query: expandQuery },
-        });
+        const result: any = await executeCypher(expandQuery);
         setGraphData((prev) => mergeGraphData(prev, result, true));
       } catch (err: any) {
         setError(`展开邻居失败: ${friendlyDbError(err)}`);
@@ -555,9 +646,7 @@ function App() {
       }
       setLoading(true);
       try {
-        const result: any = await invoke("execute_cypher", {
-          request: { query: relQuery },
-        });
+        const result: any = await executeCypher(relQuery);
         setGraphData((prev) => mergeGraphData(prev, result, true));
       } catch (err: any) {
         setError(`查询关系失败: ${friendlyDbError(err)}`);
@@ -579,9 +668,13 @@ function App() {
         }
         setLoading(true);
         try {
-          const result: any = await invoke("execute_cypher", { request: { query: relQuery } });
+          const result: any = await executeCypher(relQuery);
           setGraphData((prev) => mergeGraphData(prev, result, true));
-        } catch (err: any) { setError(`查询关系失败: ${friendlyDbError(err)}`); } finally { setLoading(false); }
+        } catch (err: any) {
+          setError(`查询关系失败: ${friendlyDbError(err)}`);
+        } finally {
+          setLoading(false);
+        }
       }
     }
   };
@@ -624,7 +717,7 @@ function App() {
     }
 
     try {
-      await invoke("execute_cypher", { request: { query: updateQuery } });
+      await executeCypher(updateQuery);
 
       // 本地刷新数据
       setGraphData(prev => {
@@ -683,7 +776,7 @@ function App() {
     }
     
     try {
-      await invoke("execute_cypher", { request: { query: updateQuery } });
+      await executeCypher(updateQuery);
       // Neo4j REMOVE 真正去掉 key；Ladybug SET=null 只把值设为 null，key 仍存在
       const removeKey = dbType === "neo4j";
       const applyDelete = (props: Record<string, any>) => {
@@ -775,7 +868,7 @@ function App() {
 
     try {
       console.log("[handleSaveTempEntity] query:", createQuery);
-      const result: any = await invoke("execute_cypher", { request: { query: createQuery } });
+      const result: any = await executeCypher(createQuery);
       console.log("[handleSaveTempEntity] result:", result);
 
       // 关系创建：若 MATCH 未命中源/目标，不会报错但也不会有新边，显式提醒用户
@@ -841,7 +934,7 @@ function App() {
     }
 
     try {
-      const result: any = await invoke("execute_cypher", { request: { query: q } });
+      const result: any = await executeCypher(q);
       if (result.nodes?.length > 0) {
         setGraphData(prev => mergeGraphData(prev, result, true));
         return result.nodes.map((n: any) => String(n.id));
@@ -984,7 +1077,7 @@ function App() {
       <main className="main-area">
         <Header 
           sidebarCollapsed={sidebarCollapsed} setSidebarCollapsed={setSidebarCollapsed}
-          connected={connected} readOnly={readOnly} autoCreatedDb={autoCreatedDb} dbType={dbType} uri={uri} lbugPath={lbugPath}
+          connected={connected} readOnly={readOnly} autoCreatedDb={autoCreatedDb} dbType={dbType} uri={uri} lbugPath={lbugPath} kuzuPath={kuzuPath}
           databases={databases} selectedDb={selectedDb} user={user}
         />
 

@@ -34,6 +34,7 @@ pub struct ConnectRequest {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct QueryRequest {
     pub query: String,
+    pub db_type: Option<String>,
 }
 
 #[derive(Serialize, Debug, Clone)]
@@ -141,11 +142,12 @@ pub async fn connect(state: &AppState, req: &ConnectRequest) -> Result<ConnectRe
     }
 }
 
-pub async fn execute(state: &AppState, cypher: &str) -> Result<GraphData, String> {
-    let info = state.connection_info.lock().await.clone();
-    if !info.connected { return Err("尚未连接数据库，请先点击「连接」按钮".into()); }
+pub async fn execute(state: &AppState, db_type: &str, cypher: &str) -> Result<GraphData, String> {
+    if !is_connected(state, db_type).await {
+        return Err(format!("{} 尚未连接，请先点击「连接」按钮", db_type.to_uppercase()));
+    }
 
-    match info.db_type.as_str() {
+    match db_type {
         #[cfg(feature = "neo4j")]
         "neo4j" => neo4j::execute(state, cypher).await,
         #[cfg(feature = "lbug")]
@@ -156,11 +158,12 @@ pub async fn execute(state: &AppState, cypher: &str) -> Result<GraphData, String
     }
 }
 
-pub async fn get_schema_stats(state: &AppState) -> Result<SchemaStats, String> {
-    let info = state.connection_info.lock().await.clone();
-    if !info.connected { return Err("尚未连接数据库".into()); }
+pub async fn get_schema_stats(state: &AppState, db_type: &str) -> Result<SchemaStats, String> {
+    if !is_connected(state, db_type).await {
+        return Err(format!("{} 尚未连接", db_type.to_uppercase()));
+    }
 
-    match info.db_type.as_str() {
+    match db_type {
         #[cfg(feature = "neo4j")]
         "neo4j" => neo4j::get_schema_stats(state).await,
         #[cfg(feature = "lbug")]
@@ -171,28 +174,70 @@ pub async fn get_schema_stats(state: &AppState) -> Result<SchemaStats, String> {
     }
 }
 
-pub async fn list_databases(state: &AppState) -> Result<Vec<DatabaseInfo>, String> {
-    let info = state.connection_info.lock().await.clone();
-    if !info.connected { return Err("尚未连接数据库".into()); }
+pub async fn list_databases(state: &AppState, db_type: &str) -> Result<Vec<DatabaseInfo>, String> {
+    if !is_connected(state, db_type).await {
+        return Err(format!("{} 尚未连接", db_type.to_uppercase()));
+    }
 
-    match info.db_type.as_str() {
+    match db_type {
         #[cfg(feature = "neo4j")]
         "neo4j" => neo4j::list_databases(state).await,
         _ => Ok(vec![DatabaseInfo { name: "default".into(), is_default: true, status: "online".into() }])
     }
 }
 
-pub async fn switch_database(state: &AppState, db_name: &str) -> Result<String, String> {
-    let info = state.connection_info.lock().await.clone();
-    if !info.connected { return Err("尚未连接数据库".into()); }
+pub async fn switch_database(state: &AppState, db_type: &str, db_name: &str) -> Result<String, String> {
+    if !is_connected(state, db_type).await {
+        return Err(format!("{} 尚未连接", db_type.to_uppercase()));
+    }
 
-    if info.db_type == "neo4j" {
+    if db_type == "neo4j" {
         #[cfg(feature = "neo4j")]
         return neo4j::switch_database(state, db_name).await;
         #[cfg(not(feature = "neo4j"))]
         return Err("不支持多数据库".into());
     } else {
         Ok("此数据库仅支持单数据库".into())
+    }
+}
+
+pub async fn disconnect(state: &AppState, db_type: &str) -> Result<String, String> {
+    match db_type {
+        #[cfg(feature = "neo4j")]
+        "neo4j" => {
+            let mut graph = state.neo4j_graph.lock().await;
+            *graph = None;
+        }
+        #[cfg(feature = "lbug")]
+        "lbug" => {
+            let mut db = state.lbug_db.lock().await;
+            *db = None;
+        }
+        #[cfg(feature = "kuzu")]
+        "kuzu" => {
+            let mut db = state.kuzu_db.lock().await;
+            *db = None;
+        }
+        other => return Err(format!("不支持的数据库类型: {}", other)),
+    }
+
+    let mut info = state.connection_info.lock().await;
+    if info.db_type == db_type {
+        info.connected = false;
+        info.read_only = false;
+    }
+    Ok(format!("已断开 {} 连接", db_type.to_uppercase()))
+}
+
+async fn is_connected(state: &AppState, db_type: &str) -> bool {
+    match db_type {
+        #[cfg(feature = "neo4j")]
+        "neo4j" => state.neo4j_graph.lock().await.is_some(),
+        #[cfg(feature = "lbug")]
+        "lbug" => state.lbug_db.lock().await.is_some(),
+        #[cfg(feature = "kuzu")]
+        "kuzu" => state.kuzu_db.lock().await.is_some(),
+        _ => false,
     }
 }
 

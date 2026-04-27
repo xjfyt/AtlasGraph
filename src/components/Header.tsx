@@ -10,14 +10,16 @@ export interface HeaderProps {
   dbType: string;
   uri: string;
   lbugPath: string;
+  kuzuPath: string;
   databases: any[];
   selectedDb: string;
   user: string;
 }
 
 export default function Header({
-  sidebarCollapsed, setSidebarCollapsed, connected, readOnly, autoCreatedDb, dbType, uri, lbugPath, databases, selectedDb, user
+  sidebarCollapsed, setSidebarCollapsed, connected, readOnly, autoCreatedDb, dbType, uri, lbugPath, kuzuPath, databases, selectedDb, user
 }: HeaderProps) {
+  const instanceLabel = dbType === "neo4j" ? uri : dbType === "kuzu" ? kuzuPath : lbugPath;
   return (
     <div className="topbar">
       <div className="topbar-left">
@@ -30,7 +32,7 @@ export default function Header({
           <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Instance:</span>
           <div className={`status-dot ${connected ? "connected" : "disconnected"}`} />
           <span style={{ fontFamily: "'SF Mono','Consolas',monospace", fontSize: 12 }}>
-            {dbType === "neo4j" ? uri : lbugPath}
+            {instanceLabel}
           </span>
         </div>
         {connected && databases.length > 0 && (

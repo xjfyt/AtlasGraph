@@ -24,6 +24,7 @@ The current version natively supports the following three major graph driving en
 > Local `Ladybug` and `Kuzu` databases support a manual **read-only** option before connecting.
 > By default, the option is unchecked and the database is opened in normal read-write mode.
 > After a successful connection, both the sidebar connection panel and the top status bar show whether the current session is `read-write` or `read-only`.
+> After an engine is connected, the original "Connect" button changes to "Disconnect". Switching to another engine no longer forces the previous one to disconnect, so `Neo4j`, `Ladybug`, and `Kuzu` can keep their own connection states independently.
 > In read-only mode, queries and graph browsing still work, but write operations are rejected by the underlying database.
 >
 > ⚠️ **Concurrency limitation**:
