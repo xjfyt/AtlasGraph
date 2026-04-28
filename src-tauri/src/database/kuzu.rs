@@ -1,16 +1,16 @@
-use super::{AppState, ConnectRequest, ConnectResponse, GraphData, GraphEdge, GraphNode, ItemCount, SchemaStats};
+use super::{AppState, ConnectRequest, ConnectResponse, GraphData, GraphEdge, GraphNode, ItemCount, SchemaStats, AppError};
 use serde_json::{json, Value};
 use kuzu::{Connection, Database, SystemConfig, Value as KuzuValue, NodeVal, RelVal};
 
-pub async fn connect(state: &AppState, req: &ConnectRequest) -> Result<ConnectResponse, String> {
+pub async fn connect(state: &AppState, req: &ConnectRequest) -> Result<ConnectResponse, AppError> {
     let raw_path = req.kuzu_path.as_deref().unwrap_or("").trim();
     let read_only = req.read_only.unwrap_or(false);
-    if raw_path.is_empty() { return Err("Kuzu 数据库路径不能为空".into()); }
+    if raw_path.is_empty() { return Err(AppError::ConnectionError("Kuzu 数据库路径不能为空".into())); }
 
     let db_path = std::path::Path::new(raw_path);
     if let Some(parent) = db_path.parent() {
         if !parent.as_os_str().is_empty() && !parent.exists() {
-            std::fs::create_dir_all(parent).map_err(|e| format!("创建数据库目录失败: {}", e))?;
+            std::fs::create_dir_all(parent).map_err(|e| AppError::SystemError(format!("创建数据库目录失败: {}", e)))?;
         }
     }
 
@@ -19,11 +19,11 @@ pub async fn connect(state: &AppState, req: &ConnectRequest) -> Result<ConnectRe
 
     if auto_created && read_only {
         let _ = Database::new(&path, SystemConfig::default())
-            .map_err(|e| format!("Kuzu Database 初始化失败: {}", e))?;
+            .map_err(|e| AppError::ConnectionError(format!("Kuzu Database 初始化失败: {}", e)))?;
     }
 
     let db = Database::new(&path, SystemConfig::default().read_only(read_only))
-        .map_err(|e| format!("Kuzu Database 初始化失败: {}", e))?;
+        .map_err(|e| AppError::ConnectionError(format!("Kuzu Database 初始化失败: {}", e)))?;
 
     {
         let mut kd = state.kuzu_db.lock().await;
@@ -53,11 +53,11 @@ pub async fn connect(state: &AppState, req: &ConnectRequest) -> Result<ConnectRe
     })
 }
 
-pub async fn execute(state: &AppState, cypher: &str) -> Result<GraphData, String> {
+pub async fn execute(state: &AppState, cypher: &str) -> Result<GraphData, AppError> {
     let db_lock = state.kuzu_db.lock().await;
-    let db = db_lock.as_ref().ok_or("Kuzu 连接不存在")?;
-    let conn = Connection::new(db).map_err(|e| format!("初始化连接失败: {}", e))?;
-    let result = conn.query(cypher).map_err(|e| format!("Kuzu 查询执行失败: {}", e))?;
+    let db = db_lock.as_ref().ok_or_else(|| AppError::ConnectionError("Kuzu 连接不存在".into()))?;
+    let conn = Connection::new(db).map_err(|e| AppError::ConnectionError(format!("初始化连接失败: {}", e)))?;
+    let result = conn.query(cypher).map_err(|e| AppError::QueryError(format!("Kuzu 查询执行失败: {}", e)))?;
     let mut nodes = std::collections::HashMap::new(); let mut edges = std::collections::HashMap::new();
     for row in result {
         for val in row { traverse_value(&val, &mut nodes, &mut edges); }
@@ -65,11 +65,11 @@ pub async fn execute(state: &AppState, cypher: &str) -> Result<GraphData, String
     Ok(GraphData { nodes: nodes.into_values().collect(), edges: edges.into_values().collect() })
 }
 
-pub async fn get_schema_stats(state: &AppState) -> Result<SchemaStats, String> {
+pub async fn get_schema_stats(state: &AppState) -> Result<SchemaStats, AppError> {
     let mut stats = SchemaStats { total_nodes: 0, total_edges: 0, labels: Vec::new(), rel_types: Vec::new() };
     let db_lock = state.kuzu_db.lock().await;
-    let db = db_lock.as_ref().ok_or("Kuzu 连接已断开")?;
-    let conn = Connection::new(db).map_err(|e| format!("连接失效: {}", e))?;
+    let db = db_lock.as_ref().ok_or_else(|| AppError::ConnectionError("Kuzu 连接已断开".into()))?;
+    let conn = Connection::new(db).map_err(|e| AppError::ConnectionError(format!("连接失效: {}", e)))?;
     if let Ok(mut res) = conn.query("CALL show_tables() RETURN *") {
         let mut node_tables = Vec::new(); let mut rel_tables = Vec::new();
         while let Some(row) = res.next() {

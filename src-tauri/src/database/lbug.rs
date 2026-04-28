@@ -1,23 +1,23 @@
-use super::{AppState, ConnectRequest, ConnectResponse, GraphData, GraphEdge, GraphNode, ItemCount, SchemaStats};
+use super::{AppState, ConnectRequest, ConnectResponse, GraphData, GraphEdge, GraphNode, ItemCount, SchemaStats, AppError};
 use serde_json::{json, Value};
 use lbug::{Connection, Database, SystemConfig, Value as LbugValue, NodeVal, RelVal};
 
-pub async fn connect(state: &AppState, req: &ConnectRequest) -> Result<ConnectResponse, String> {
+pub async fn connect(state: &AppState, req: &ConnectRequest) -> Result<ConnectResponse, AppError> {
     let path = req.lbug_path.as_deref().unwrap_or("").trim();
     let read_only = req.read_only.unwrap_or(false);
-    if path.is_empty() { return Err("Ladybug 数据库路径不能为空".into()); }
+    if path.is_empty() { return Err(AppError::ConnectionError("Ladybug 数据库路径不能为空".into())); }
     let db_path = std::path::Path::new(path);
 
     if let Some(parent) = db_path.parent() {
         if !parent.as_os_str().is_empty() && !parent.exists() {
-            std::fs::create_dir_all(parent).map_err(|e| format!("创建数据库目录失败: {}", e))?;
+            std::fs::create_dir_all(parent).map_err(|e| AppError::SystemError(format!("创建数据库目录失败: {}", e)))?;
         }
     }
 
     let auto_created = !db_path.exists();
     if auto_created && read_only {
         let _ = Database::new(path, SystemConfig::default())
-            .map_err(|e| format!("Ladybug Database 初始化失败: {}", e))?;
+            .map_err(|e| AppError::ConnectionError(format!("Ladybug Database 初始化失败: {}", e)))?;
     }
 
     {
@@ -31,7 +31,7 @@ pub async fn connect(state: &AppState, req: &ConnectRequest) -> Result<ConnectRe
     }
 
     let db = Database::new(path, SystemConfig::default().read_only(read_only))
-        .map_err(|e| format!("Ladybug Database 初始化失败: {}", e))?;
+        .map_err(|e| AppError::ConnectionError(format!("Ladybug Database 初始化失败: {}", e)))?;
 
     finish_connect(state, path, db, read_only, auto_created).await
 }
@@ -42,7 +42,7 @@ async fn finish_connect(
     db: Database,
     read_only: bool,
     auto_created: bool,
-) -> Result<ConnectResponse, String> {
+) -> Result<ConnectResponse, AppError> {
 
     {
         let mut kd = state.lbug_db.lock().await;
@@ -61,8 +61,8 @@ async fn finish_connect(
     if !auto_created {
         let db_lock = state.lbug_db.lock().await;
         if let Some(db_ref) = db_lock.as_ref() {
-            let conn = Connection::new(db_ref).map_err(|e| format!("无法创建验证连接: {}", e))?;
-            conn.query("MATCH (n) RETURN n LIMIT 1").map_err(|e| format!("连接验证失败: {}", e))?;
+            let conn = Connection::new(db_ref).map_err(|e| AppError::ConnectionError(format!("无法创建验证连接: {}", e)))?;
+            conn.query("MATCH (n) RETURN n LIMIT 1").map_err(|e| AppError::ConnectionError(format!("连接验证失败: {}", e)))?;
         }
     }
 
@@ -79,11 +79,11 @@ async fn finish_connect(
     Ok(ConnectResponse { message, read_only, auto_created })
 }
 
-pub async fn execute(state: &AppState, cypher: &str) -> Result<GraphData, String> {
+pub async fn execute(state: &AppState, cypher: &str) -> Result<GraphData, AppError> {
     let db_lock = state.lbug_db.lock().await;
-    let db = db_lock.as_ref().ok_or("Ladybug 连接不存在")?;
-    let conn = Connection::new(db).map_err(|e| format!("初始化连接失败: {}", e))?;
-    let result = conn.query(cypher).map_err(|e| format!("Ladybug 查询执行失败: {}", e))?;
+    let db = db_lock.as_ref().ok_or_else(|| AppError::ConnectionError("Ladybug 连接不存在".into()))?;
+    let conn = Connection::new(db).map_err(|e| AppError::ConnectionError(format!("初始化连接失败: {}", e)))?;
+    let result = conn.query(cypher).map_err(|e| AppError::QueryError(format!("Ladybug 查询执行失败: {}", e)))?;
     let mut nodes = std::collections::HashMap::new(); let mut edges = std::collections::HashMap::new();
     for row in result {
         for val in row { traverse_value(&val, &mut nodes, &mut edges); }
@@ -92,11 +92,11 @@ pub async fn execute(state: &AppState, cypher: &str) -> Result<GraphData, String
     Ok(GraphData { nodes: nodes.into_values().collect(), edges: edges.into_values().collect() })
 }
 
-pub async fn get_schema_stats(state: &AppState) -> Result<SchemaStats, String> {
+pub async fn get_schema_stats(state: &AppState) -> Result<SchemaStats, AppError> {
     let mut stats = SchemaStats { total_nodes: 0, total_edges: 0, labels: Vec::new(), rel_types: Vec::new() };
     let db_lock = state.lbug_db.lock().await;
-    let db = db_lock.as_ref().ok_or("Ladybug 连接已断开")?;
-    let conn = Connection::new(db).map_err(|e| format!("连接失效: {}", e))?;
+    let db = db_lock.as_ref().ok_or_else(|| AppError::ConnectionError("Ladybug 连接已断开".into()))?;
+    let conn = Connection::new(db).map_err(|e| AppError::ConnectionError(format!("连接失效: {}", e)))?;
     if let Ok(mut res) = conn.query("CALL show_tables() RETURN *") {
         let mut node_tables = Vec::new(); let mut rel_tables = Vec::new();
         while let Some(row) = res.next() {

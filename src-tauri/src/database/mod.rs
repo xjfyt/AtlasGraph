@@ -16,6 +16,9 @@ pub mod lbug;
 #[cfg(feature = "neo4j")]
 pub mod neo4j;
 
+pub mod error;
+pub use error::AppError;
+
 // ===== 请求/响应结构 =====
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -126,7 +129,7 @@ impl AppState {
 
 // ===== Facade 门面方法 =====
 
-pub async fn connect(state: &AppState, req: &ConnectRequest) -> Result<ConnectResponse, String> {
+pub async fn connect(state: &AppState, req: &ConnectRequest) -> Result<ConnectResponse, AppError> {
     let db_type = req.db_type.clone().unwrap_or_else(|| {
         if req.is_neo4j { "neo4j".to_string() } else { "lbug".to_string() }
     });
@@ -138,13 +141,13 @@ pub async fn connect(state: &AppState, req: &ConnectRequest) -> Result<ConnectRe
         "lbug" => lbug::connect(state, req).await,
         #[cfg(feature = "kuzu")]
         "kuzu" => kuzu::connect(state, req).await,
-        other => Err(format!("不支持的数据库类型或未编译此功能: {}", other)),
+        other => Err(AppError::SystemError(format!("不支持的数据库类型或未编译此功能: {}", other))),
     }
 }
 
-pub async fn execute(state: &AppState, db_type: &str, cypher: &str) -> Result<GraphData, String> {
+pub async fn execute(state: &AppState, db_type: &str, cypher: &str) -> Result<GraphData, AppError> {
     if !is_connected(state, db_type).await {
-        return Err(format!("{} 尚未连接，请先点击「连接」按钮", db_type.to_uppercase()));
+        return Err(AppError::ConnectionError(format!("{} 尚未连接，请先点击「连接」按钮", db_type.to_uppercase())));
     }
 
     match db_type {
@@ -154,13 +157,13 @@ pub async fn execute(state: &AppState, db_type: &str, cypher: &str) -> Result<Gr
         "lbug" => lbug::execute(state, cypher).await,
         #[cfg(feature = "kuzu")]
         "kuzu" => kuzu::execute(state, cypher).await,
-        other => Err(format!("未编译或不支持的数据库执行: {}", other)),
+        other => Err(AppError::SystemError(format!("未编译或不支持的数据库执行: {}", other))),
     }
 }
 
-pub async fn get_schema_stats(state: &AppState, db_type: &str) -> Result<SchemaStats, String> {
+pub async fn get_schema_stats(state: &AppState, db_type: &str) -> Result<SchemaStats, AppError> {
     if !is_connected(state, db_type).await {
-        return Err(format!("{} 尚未连接", db_type.to_uppercase()));
+        return Err(AppError::ConnectionError(format!("{} 尚未连接", db_type.to_uppercase())));
     }
 
     match db_type {
@@ -174,9 +177,9 @@ pub async fn get_schema_stats(state: &AppState, db_type: &str) -> Result<SchemaS
     }
 }
 
-pub async fn list_databases(state: &AppState, db_type: &str) -> Result<Vec<DatabaseInfo>, String> {
+pub async fn list_databases(state: &AppState, db_type: &str) -> Result<Vec<DatabaseInfo>, AppError> {
     if !is_connected(state, db_type).await {
-        return Err(format!("{} 尚未连接", db_type.to_uppercase()));
+        return Err(AppError::ConnectionError(format!("{} 尚未连接", db_type.to_uppercase())));
     }
 
     match db_type {
@@ -186,22 +189,22 @@ pub async fn list_databases(state: &AppState, db_type: &str) -> Result<Vec<Datab
     }
 }
 
-pub async fn switch_database(state: &AppState, db_type: &str, db_name: &str) -> Result<String, String> {
+pub async fn switch_database(state: &AppState, db_type: &str, db_name: &str) -> Result<String, AppError> {
     if !is_connected(state, db_type).await {
-        return Err(format!("{} 尚未连接", db_type.to_uppercase()));
+        return Err(AppError::ConnectionError(format!("{} 尚未连接", db_type.to_uppercase())));
     }
 
     if db_type == "neo4j" {
         #[cfg(feature = "neo4j")]
         return neo4j::switch_database(state, db_name).await;
         #[cfg(not(feature = "neo4j"))]
-        return Err("不支持多数据库".into());
+        return Err(AppError::InvalidOperation("不支持多数据库".into()));
     } else {
         Ok("此数据库仅支持单数据库".into())
     }
 }
 
-pub async fn disconnect(state: &AppState, db_type: &str) -> Result<String, String> {
+pub async fn disconnect(state: &AppState, db_type: &str) -> Result<String, AppError> {
     match db_type {
         #[cfg(feature = "neo4j")]
         "neo4j" => {
@@ -218,7 +221,7 @@ pub async fn disconnect(state: &AppState, db_type: &str) -> Result<String, Strin
             let mut db = state.kuzu_db.lock().await;
             *db = None;
         }
-        other => return Err(format!("不支持的数据库类型: {}", other)),
+        other => return Err(AppError::InvalidOperation(format!("不支持的数据库类型: {}", other))),
     }
 
     let mut info = state.connection_info.lock().await;

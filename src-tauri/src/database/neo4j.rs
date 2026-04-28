@@ -1,23 +1,23 @@
-use super::{AppState, ConnectRequest, ConnectResponse, DatabaseInfo, GraphData, GraphEdge, GraphNode, ItemCount, SchemaStats};
+use super::{AppState, ConnectRequest, ConnectResponse, DatabaseInfo, GraphData, GraphEdge, GraphNode, ItemCount, SchemaStats, AppError};
 use neo4rs::{query, BoltType, ConfigBuilder, Graph};
 use serde_json::{json, Value};
 
-pub async fn connect(state: &AppState, req: &ConnectRequest) -> Result<ConnectResponse, String> {
+pub async fn connect(state: &AppState, req: &ConnectRequest) -> Result<ConnectResponse, AppError> {
     let uri = req.uri.as_deref().unwrap_or("").trim();
     let user = req.user.as_deref().unwrap_or("neo4j").trim();
     let password = req.password.as_deref().unwrap_or("").trim();
     let database = req.database.as_deref().unwrap_or("neo4j").trim();
 
-    if uri.is_empty() { return Err("连接 URI 不能为空".into()); }
-    if password.is_empty() { return Err("密码不能为空".into()); }
+    if uri.is_empty() { return Err(AppError::ConnectionError("连接 URI 不能为空".into())); }
+    if password.is_empty() { return Err(AppError::ConnectionError("密码不能为空".into())); }
 
     let config = ConfigBuilder::default().uri(uri).user(user).password(password).db(database).build()
-        .map_err(|e| format!("配置错误: {}", e))?;
+        .map_err(|e| AppError::SystemError(format!("配置错误: {}", e)))?;
 
-    let graph = Graph::connect(config).await.map_err(|e| format!("Neo4j 连接失败: {}", e))?;
+    let graph = Graph::connect(config).await.map_err(|e| AppError::ConnectionError(format!("Neo4j 连接失败: {}", e)))?;
 
-    let mut result = graph.execute(query("RETURN 1 AS ping")).await.map_err(|e| format!("连接验证失败: {}", e))?;
-    let _row = result.next().await.map_err(|e| format!("连接验证失败: {}", e))?;
+    let mut result = graph.execute(query("RETURN 1 AS ping")).await.map_err(|e| AppError::ConnectionError(format!("连接验证失败: {}", e)))?;
+    let _row = result.next().await.map_err(|e| AppError::ConnectionError(format!("连接验证失败: {}", e)))?;
 
     {
         let mut g = state.neo4j_graph.lock().await;
@@ -40,12 +40,12 @@ pub async fn connect(state: &AppState, req: &ConnectRequest) -> Result<ConnectRe
     })
 }
 
-pub async fn execute(state: &AppState, cypher: &str) -> Result<GraphData, String> {
+pub async fn execute(state: &AppState, cypher: &str) -> Result<GraphData, AppError> {
     let graph_lock = state.neo4j_graph.lock().await;
-    let graph = graph_lock.as_ref().ok_or("Neo4j 连接已断开，请重新连接")?;
+    let graph = graph_lock.as_ref().ok_or_else(|| AppError::ConnectionError("Neo4j 连接已断开，请重新连接".into()))?;
     if super::is_write_query(cypher) { return execute_write(graph, cypher).await; }
 
-    let mut result = graph.execute(query(cypher)).await.map_err(|e| format!("查询执行失败: {}", e))?;
+    let mut result = graph.execute(query(cypher)).await.map_err(|e| AppError::QueryError(format!("查询执行失败: {}", e)))?;
     let mut nodes: Vec<GraphNode> = Vec::new(); let mut edges: Vec<GraphEdge> = Vec::new();
     let mut seen_node_ids = std::collections::HashSet::new(); let mut seen_edge_ids = std::collections::HashSet::new();
     let aliases = super::extract_return_aliases(cypher);
@@ -55,29 +55,29 @@ pub async fn execute(state: &AppState, cypher: &str) -> Result<GraphData, String
     Ok(GraphData { nodes, edges })
 }
 
-async fn execute_write(graph: &Graph, cypher: &str) -> Result<GraphData, String> {
-    let mut txn = graph.start_txn().await.map_err(|e| format!("开启事务失败: {}", e))?;
+async fn execute_write(graph: &Graph, cypher: &str) -> Result<GraphData, AppError> {
+    let mut txn = graph.start_txn().await.map_err(|e| AppError::SystemError(format!("开启事务失败: {}", e)))?;
     let mut nodes: Vec<GraphNode> = Vec::new(); let mut edges: Vec<GraphEdge> = Vec::new();
     let mut seen_node_ids = std::collections::HashSet::new(); let mut seen_edge_ids = std::collections::HashSet::new();
     let aliases = super::extract_return_aliases(cypher);
     {
-        let mut stream = txn.execute(query(cypher)).await.map_err(|e| format!("查询执行失败: {}", e))?;
+        let mut stream = txn.execute(query(cypher)).await.map_err(|e| AppError::QueryError(format!("查询执行失败: {}", e)))?;
         loop {
             match stream.next(txn.handle()).await {
                 Ok(Some(row)) => process_row(&row, &aliases, &mut nodes, &mut edges, &mut seen_node_ids, &mut seen_edge_ids),
                 Ok(None) => break,
-                Err(e) => { let _ = txn.rollback().await; return Err(format!("查询执行失败: {}", e)); }
+                Err(e) => { let _ = txn.rollback().await; return Err(AppError::QueryError(format!("查询执行失败: {}", e))); }
             }
         }
     }
-    txn.commit().await.map_err(|e| format!("提交事务失败: {}", e))?;
+    txn.commit().await.map_err(|e| AppError::SystemError(format!("提交事务失败: {}", e)))?;
     Ok(GraphData { nodes, edges })
 }
 
-pub async fn list_databases(state: &AppState) -> Result<Vec<DatabaseInfo>, String> {
+pub async fn list_databases(state: &AppState) -> Result<Vec<DatabaseInfo>, AppError> {
     let graph_lock = state.neo4j_graph.lock().await;
-    let graph = graph_lock.as_ref().ok_or("Neo4j 连接不存在")?;
-    let mut result = graph.execute(query("SHOW DATABASES")).await.map_err(|e| format!("查询数据库列表失败: {}", e))?;
+    let graph = graph_lock.as_ref().ok_or_else(|| AppError::ConnectionError("Neo4j 连接不存在".into()))?;
+    let mut result = graph.execute(query("SHOW DATABASES")).await.map_err(|e| AppError::QueryError(format!("查询数据库列表失败: {}", e)))?;
     let mut databases = Vec::new();
     while let Ok(Some(row)) = result.next().await {
         let name: String = row.get("name").unwrap_or_default();
@@ -92,7 +92,7 @@ pub async fn list_databases(state: &AppState) -> Result<Vec<DatabaseInfo>, Strin
     Ok(databases)
 }
 
-pub async fn switch_database(state: &AppState, db_name: &str) -> Result<String, String> {
+pub async fn switch_database(state: &AppState, db_name: &str) -> Result<String, AppError> {
     {
         let mut ci = state.connection_info.lock().await;
         ci.database = db_name.to_string();
@@ -100,10 +100,10 @@ pub async fn switch_database(state: &AppState, db_name: &str) -> Result<String, 
     Ok(format!("已切换到数据库: {}", db_name))
 }
 
-pub async fn get_schema_stats(state: &AppState) -> Result<SchemaStats, String> {
+pub async fn get_schema_stats(state: &AppState) -> Result<SchemaStats, AppError> {
     let mut stats = SchemaStats { total_nodes: 0, total_edges: 0, labels: Vec::new(), rel_types: Vec::new() };
     let graph_lock = state.neo4j_graph.lock().await;
-    let graph = graph_lock.as_ref().ok_or("Neo4j 连接已断开")?;
+    let graph = graph_lock.as_ref().ok_or_else(|| AppError::ConnectionError("Neo4j 连接已断开".into()))?;
     if let Ok(mut res) = graph.execute(query("MATCH (n) RETURN count(n) AS c")).await {
         if let Ok(Some(row)) = res.next().await { stats.total_nodes = row.get("c").unwrap_or(0); }
     }

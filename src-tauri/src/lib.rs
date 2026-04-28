@@ -1,6 +1,6 @@
 pub mod database;
 
-use database::{AppState, ConnectRequest, ConnectResponse, DatabaseInfo, GraphData, QueryRequest, SchemaStats};
+use database::{AppState, ConnectRequest, ConnectResponse, DatabaseInfo, GraphData, QueryRequest, SchemaStats, AppError};
 use tauri::State;
 
 #[tauri::command]
@@ -22,7 +22,7 @@ async fn get_supported_dbs() -> Result<Vec<String>, String> {
 async fn connect_db(
     state: State<'_, AppState>,
     request: ConnectRequest,
-) -> Result<ConnectResponse, String> {
+) -> Result<ConnectResponse, AppError> {
     database::connect(&state, &request).await
 }
 
@@ -31,7 +31,7 @@ async fn connect_db(
 async fn list_databases(
     state: State<'_, AppState>,
     db_type: String,
-) -> Result<Vec<DatabaseInfo>, String> {
+) -> Result<Vec<DatabaseInfo>, AppError> {
     database::list_databases(&state, &db_type).await
 }
 
@@ -41,7 +41,7 @@ async fn switch_database(
     state: State<'_, AppState>,
     db_type: String,
     db_name: String,
-) -> Result<String, String> {
+) -> Result<String, AppError> {
     database::switch_database(&state, &db_type, &db_name).await
 }
 
@@ -50,7 +50,7 @@ async fn switch_database(
 async fn execute_cypher(
     state: State<'_, AppState>,
     request: QueryRequest,
-) -> Result<GraphData, String> {
+) -> Result<GraphData, AppError> {
     let db_type = request.db_type.unwrap_or_else(|| "lbug".to_string());
     database::execute(&state, &db_type, &request.query).await
 }
@@ -64,7 +64,7 @@ async fn show_window(window: tauri::Window) {
 async fn get_schema_stats(
     state: State<'_, AppState>,
     db_type: String,
-) -> Result<SchemaStats, String> {
+) -> Result<SchemaStats, AppError> {
     database::get_schema_stats(&state, &db_type).await
 }
 
@@ -72,7 +72,7 @@ async fn get_schema_stats(
 async fn disconnect_db(
     state: State<'_, AppState>,
     db_type: String,
-) -> Result<String, String> {
+) -> Result<String, AppError> {
     database::disconnect(&state, &db_type).await
 }
 
