@@ -574,10 +574,9 @@ function App() {
                   <span className="text-[13px] font-semibold text-text-heading">所有实体 ({dbStore.schemaStats ? dbStore.schemaStats.total_nodes : graphStore.graphData.nodes.length})</span>
                 </div>
                 <div
-                  className="flex items-center gap-1.5 px-1 py-0.5 text-[11px] rounded transition-colors duration-150 cursor-pointer hover:bg-bg-hover"
+                  className="flex items-center gap-2 px-1.5 py-1 mb-1.5 text-xs rounded transition-colors duration-150 cursor-pointer hover:bg-bg-hover"
                   onClick={() => handleExecute(`MATCH (n) RETURN n LIMIT 25`)}
                   title="点击查询所有实体"
-                  style={{ marginBottom: 4 }}
                 >
                   <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: "#cbd5e1" }} />
                   <span className="text-text-faint font-mono text-[10px]">*({dbStore.schemaStats ? dbStore.schemaStats.total_nodes : graphStore.graphData.nodes.length})</span>
@@ -586,7 +585,7 @@ function App() {
                 {(dbStore.schemaStats ? dbStore.schemaStats.labels : Object.entries(labelCounts).map(([name, count]) => ({ name, count }))).map((lbl: any, i: number) => (
                   <div
                     key={lbl.name}
-                    className="flex items-center gap-1.5 px-1 py-0.5 text-[11px] rounded transition-colors duration-150 cursor-pointer hover:bg-bg-hover"
+                    className="flex items-center gap-2 px-1.5 py-1 mb-1.5 text-xs rounded transition-colors duration-150 cursor-pointer hover:bg-bg-hover"
                     onClick={() => handleExecute(`MATCH (n:\`${lbl.name}\`) RETURN n LIMIT 25`)}
                     title={`点击查询 ${lbl.name} 实体`}
                   >
@@ -596,12 +595,12 @@ function App() {
                   </div>
                 ))}
               </div>
-              <div className="mb-2" style={{ marginTop: 16 }}>
-                <div className="flex justify-between items-center mb-1">
+              <div className="mb-2" style={{ marginTop: 24 }}>
+                <div className="flex justify-between items-center mb-2">
                   <span className="text-[13px] font-semibold text-text-heading">所有关系 ({dbStore.schemaStats ? dbStore.schemaStats.total_edges : graphStore.graphData.edges.length})</span>
                 </div>
                 <div
-                  className="flex items-center gap-1.5 px-1 py-0.5 text-[11px] rounded transition-colors duration-150 cursor-pointer hover:bg-bg-hover"
+                  className="flex items-center gap-2 px-1.5 py-1 mb-1.5 text-xs rounded transition-colors duration-150 cursor-pointer hover:bg-bg-hover"
                   onClick={() => handleExecute(`MATCH p=()-[]->() RETURN p LIMIT 25`)}
                   title="点击查询所有关系"
                 >
@@ -612,7 +611,7 @@ function App() {
                 {(dbStore.schemaStats ? dbStore.schemaStats.rel_types : Object.entries(typeCounts).map(([name, count]) => ({ name, count }))).map((rel: any) => (
                   <div
                     key={rel.name}
-                    className="flex items-center gap-1.5 px-1 py-0.5 text-[11px] rounded transition-colors duration-150 cursor-pointer hover:bg-bg-hover"
+                    className="flex items-center gap-2 px-1.5 py-1 mb-1.5 text-xs rounded transition-colors duration-150 cursor-pointer hover:bg-bg-hover"
                     onClick={() => handleExecute(`MATCH p=()-[r:\`${rel.name}\`]->() RETURN p LIMIT 25`)}
                     title={`点击查询 ${rel.name} 关系`}
                   >

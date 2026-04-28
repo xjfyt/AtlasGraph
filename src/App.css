@@ -170,31 +170,31 @@ html, body, #root {
 /* ===== 通用表单组件 ===== */
 @layer components {
   .form-section {
-    @apply mb-5;
+    @apply mb-6;
   }
   .form-section-title {
-    @apply text-[11px] font-semibold text-text-muted uppercase tracking-[0.06em] mb-2;
+    @apply text-xs font-bold text-text-muted uppercase tracking-[0.06em] mb-3;
   }
   .form-group {
-    @apply mb-3;
+    @apply mb-4;
   }
   .form-label {
-    @apply block text-[11px] font-semibold text-text-muted uppercase tracking-[0.04em] mb-1.5;
+    @apply block text-xs font-bold text-text-muted uppercase tracking-[0.04em] mb-2;
   }
   .form-input {
-    @apply w-full px-3 py-2 border border-border-primary rounded-lg text-[13px] font-mono text-text-code bg-bg-secondary outline-none transition-all duration-150;
+    @apply w-full px-3 py-2.5 border border-border-primary rounded-lg text-[13px] font-mono text-text-code bg-bg-secondary outline-none transition-all duration-150;
   }
   .form-input:focus {
     @apply border-border-input-focus ring-3 ring-accent-bg bg-bg-primary;
   }
   .form-hint {
-    @apply text-[11px] text-text-faint mt-1.5 leading-relaxed;
+    @apply block text-xs text-text-faint mt-2 leading-relaxed;
   }
   .readonly-option {
-    @apply flex items-center gap-2 mt-2.5 text-xs text-text-muted select-none;
+    @apply flex items-center gap-2.5 mt-3 mb-4 text-[13px] font-medium text-text-muted select-none;
   }
   .readonly-option input {
-    @apply m-0;
+    @apply m-0 w-3.5 h-3.5;
   }
   .icon-btn {
     @apply w-7 h-7 flex items-center justify-center rounded-md border border-transparent bg-transparent text-text-muted cursor-pointer transition-all duration-150 hover:bg-bg-hover hover:text-text-heading hover:border-border-primary;

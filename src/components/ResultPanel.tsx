@@ -34,9 +34,9 @@ export default function ResultPanel({
   const { activeTab, setActiveTab, detail, setDetail, setActiveTool } = useUIStore();
 
   const getTabBtnClass = (isActive: boolean) => {
-    return `px-3.5 py-2.5 border-none bg-transparent text-[13px] font-medium cursor-pointer border-b-2 flex items-center gap-1.5 transition-all duration-150 [&>svg]:w-4 [&>svg]:h-4 ${
+    return `px-4 py-3 border-none bg-transparent text-[13px] font-medium cursor-pointer border-b-2 flex items-center gap-2 transition-all duration-150 [&>svg]:w-4 [&>svg]:h-4 [&>svg]:shrink-0 [&>svg]:mr-1 ${
       isActive
-        ? "text-accent border-accent font-semibold"
+        ? "text-accent border-accent font-bold"
         : "text-text-faint border-transparent hover:text-text-primary"
     }`;
   };
