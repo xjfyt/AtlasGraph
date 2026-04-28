@@ -23,4 +23,5 @@ export interface ContextMenuState {
   id: string;
   x: number;
   y: number;
+  edgeCount?: number;
 }

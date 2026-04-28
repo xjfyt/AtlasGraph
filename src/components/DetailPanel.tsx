@@ -1,46 +1,41 @@
 import { useState, useEffect } from "react";
 import { IconX } from "./icons";
 import { Trash2, PlusCircle } from "lucide-react";
-
-export interface DetailInfo {
-  type: "node" | "edge";
-  id: string;
-  label?: string;
-  labels?: string[];
-  source?: string;
-  target?: string;
-  isTemp?: boolean;
-  properties: Record<string, any>;
-}
+import { DetailInfo } from "../types";
+import { useDBStore } from "../store/dbStore";
 
 export interface DetailPanelProps {
   detail: DetailInfo;
   setDetail: (v: DetailInfo | null) => void;
-  editingProp: string | null;
-  setEditingProp: (v: string | null) => void;
-  editValue: string;
-  setEditValue: (v: string) => void;
-  savingProp: boolean;
-  addingProp: boolean;
-  setAddingProp: (v: boolean) => void;
-  newPropKey: string;
-  setNewPropKey: (v: string) => void;
-  newPropValue: string;
-  setNewPropValue: (v: string) => void;
   handleSaveProp: (key: string, value: string) => Promise<void>;
   handleDeleteProp: (key: string) => void;
-  schemaLabels?: string[];
-  schemaRelTypes?: string[];
   handleSaveTempEntity?: (labelOrType: string, customProps: any) => Promise<void>;
   handleCancelTempEntity?: () => void;
 }
 
 export default function DetailPanel({
-  detail, setDetail, editingProp, setEditingProp, editValue, setEditValue,
-  savingProp, addingProp, setAddingProp, newPropKey, setNewPropKey,
-  newPropValue, setNewPropValue, handleSaveProp, handleDeleteProp,
-  schemaLabels = [], schemaRelTypes = [], handleSaveTempEntity, handleCancelTempEntity
+  detail, setDetail, handleSaveProp: outerHandleSaveProp, handleDeleteProp: outerHandleDeleteProp,
+  handleSaveTempEntity, handleCancelTempEntity
 }: DetailPanelProps) {
+  const { schemaLabels, schemaRelTypes } = useDBStore();
+  
+  const [editingProp, setEditingProp] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
+  const [addingProp, setAddingProp] = useState(false);
+  const [newPropKey, setNewPropKey] = useState("");
+  const [newPropValue, setNewPropValue] = useState("");
+  const [savingProp, setSavingProp] = useState(false);
+
+  const handleSaveProp = async (k: string, v: string) => {
+    setSavingProp(true);
+    await outerHandleSaveProp(k, v);
+    setSavingProp(false);
+    setEditingProp(null);
+  };
+  
+  const handleDeleteProp = (k: string) => {
+    outerHandleDeleteProp(k);
+  };
   const [tempLabel, setTempLabel] = useState("");
   
   useEffect(() => {

@@ -3,34 +3,30 @@ import { IconSpinner, IconPlug } from "./icons";
 import Neo4jForm from "./engines/Neo4jForm";
 import LbugForm from "./engines/LbugForm";
 import KuzuForm from "./engines/KuzuForm";
+import { useDBStore } from "../store/dbStore";
+import { useDatabaseActions } from "../hooks/useDatabaseActions";
 
-export interface ConnectViewProps {
-  dbType: string;
-  setDbType: (v: string) => void;
-  supportedDbs: string[];
-  uri: string; setUri: (v: string) => void;
-  user: string; setUser: (v: string) => void;
-  password: string; setPassword: (v: string) => void;
-  lbugPath: string; setLbugPath: (v: string) => void;
-  kuzuPath: string; setKuzuPath: (v: string) => void;
-  openReadOnly: boolean;
-  setOpenReadOnly: (v: boolean) => void;
-  connected: boolean;
-  readOnly: boolean;
-  autoCreatedDb: boolean;
-  connecting: boolean;
-  connectMsg: { ok: boolean; text: string } | null;
-  handleConnect: () => void;
-  databases: { name: string; is_default: boolean; status: string }[];
-  selectedDb: string; setSelectedDb: (v: string) => void;
-  handleDbSwitch: (db: string) => void;
-}
+export default function ConnectView() {
+  const {
+    supportedDbs, dbType, setDbType, uri, setUri, user, setUser, password, setPassword,
+    lbugPath, setLbugPath, kuzuPath, setKuzuPath, engineStates, updateEngineState
+  } = useDBStore();
 
-export default function ConnectView({
-  dbType, setDbType, supportedDbs, uri, setUri, user, setUser, password, setPassword,
-  lbugPath, setLbugPath, kuzuPath, setKuzuPath, openReadOnly, setOpenReadOnly, connected, readOnly, autoCreatedDb, connecting, connectMsg, handleConnect,
-  databases, selectedDb, setSelectedDb, handleDbSwitch
-}: ConnectViewProps) {
+  const { handleConnect, handleDbSwitch } = useDatabaseActions();
+
+  const state = engineStates[dbType];
+  const connected = state?.connected ?? false;
+  const readOnly = state?.readOnly ?? false;
+  const autoCreatedDb = state?.autoCreatedDb ?? false;
+  const openReadOnly = state?.openReadOnly ?? false;
+  const connecting = state?.connecting ?? false;
+  const connectMsg = state?.connectMsg ?? null;
+  const databases = state?.databases ?? [];
+  const selectedDb = state?.selectedDb ?? "default";
+
+  const setOpenReadOnly = (val: boolean) => updateEngineState(dbType, { openReadOnly: val });
+  const setSelectedDb = (val: string) => updateEngineState(dbType, { selectedDb: val });
+
   return (
     <>
       <div className="form-section">

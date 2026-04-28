@@ -1,14 +1,9 @@
 import { IconSun, IconMoon, IconMonitor } from "./icons";
 import "./ThemeView.css";
+import { useUIStore } from "../store/uiStore";
 
-export type ThemeMode = "light" | "dark" | "system";
-
-export interface ThemeViewProps {
-  themeMode: ThemeMode;
-  setThemeMode: (mode: ThemeMode) => void;
-}
-
-export default function ThemeView({ themeMode, setThemeMode }: ThemeViewProps) {
+export default function ThemeView() {
+  const { themeMode, setThemeMode } = useUIStore();
   return (
     <div className="theme-panel">
       <div className="form-section-title" style={{ marginBottom: 16 }}>色彩模式</div>

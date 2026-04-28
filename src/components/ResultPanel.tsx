@@ -1,26 +1,14 @@
 import GraphCanvas from "./GraphCanvas";
 import "./ResultPanel.css";
 import DetailPanel from "./DetailPanel";
-import GraphToolbar, { ActiveTool } from "./GraphToolbar";
+import GraphToolbar from "./GraphToolbar";
 import ContextMenu from "./ContextMenu";
 import { IconGraph, IconTable, IconRaw, IconMaximize, IconX } from "./icons";
-import { DetailInfo, ContextMenuState } from "../types";
+import { useGraphStore } from "../store/graphStore";
+import { useUIStore } from "../store/uiStore";
 
 interface ResultPanelProps {
-  activeTab: string;
-  setActiveTab: (tab: string) => void;
-  graphData: { nodes: any[], edges: any[] };
   mergedData: { nodes: any[], edges: any[] };
-  execTime: number | null;
-
-  detail: DetailInfo | null;
-  setDetail: (detail: DetailInfo | null) => void;
-  activeTool: ActiveTool;
-  setActiveTool: (tool: ActiveTool) => void;
-  contextMenu: ContextMenuState | null;
-  setContextMenu: (menu: ContextMenuState | null) => void;
-  drawingEdgeSource: string | null;
-  setDrawingEdgeSource: (src: string | null) => void;
 
   handleNodeClick: (nodeId: string) => void;
   handleEdgeClick: (edgeId: string) => void;
@@ -30,37 +18,22 @@ interface ResultPanelProps {
   handleGlobalSearch?: (text: string) => Promise<string[]>;
   handleMenuItemClick: (action: string) => void;
 
-  editingProp: string | null;
-  setEditingProp: (prop: string | null) => void;
-  editValue: string;
-  setEditValue: (val: string) => void;
-  savingProp: boolean;
-  addingProp: boolean;
-  setAddingProp: (val: boolean) => void;
-  newPropKey: string;
-  setNewPropKey: (key: string) => void;
-  newPropValue: string;
-  setNewPropValue: (val: string) => void;
   handleSaveProp: (key: string, val: string) => Promise<void>;
   handleDeleteProp: (key: string) => void;
-  schemaLabels: string[];
-  schemaRelTypes: string[];
   handleSaveTempEntity: (labelOrType: string, customProps: any) => Promise<void>;
   handleCancelTempEntity: () => void;
 }
 
 export default function ResultPanel({
-  activeTab, setActiveTab, graphData, mergedData, execTime,
-  detail, setDetail, activeTool, setActiveTool,
-  contextMenu, setContextMenu, drawingEdgeSource, setDrawingEdgeSource,
+  mergedData,
   handleNodeClick, handleEdgeClick, handleCanvasClick,
   handleNodeRightClick, handleEdgeRightClick, handleGlobalSearch, handleMenuItemClick,
-  editingProp, setEditingProp, editValue, setEditValue,
-  savingProp, addingProp, setAddingProp,
-  newPropKey, setNewPropKey, newPropValue, setNewPropValue,
-  handleSaveProp, handleDeleteProp, schemaLabels, schemaRelTypes,
+  handleSaveProp, handleDeleteProp,
   handleSaveTempEntity, handleCancelTempEntity
 }: ResultPanelProps) {
+  const { graphData, execTime, drawingEdgeSource, setDrawingEdgeSource } = useGraphStore();
+  const { activeTab, setActiveTab, detail, setDetail, setActiveTool } = useUIStore();
+
   return (
     <div className="result-wrapper">
       <div className={`result-panel ${detail ? "with-detail" : ""}`}>
@@ -93,16 +66,8 @@ export default function ResultPanel({
                 onEdgeRightClick={handleEdgeRightClick}
                 onGlobalSearch={handleGlobalSearch}
               />
-              <GraphToolbar activeTool={activeTool} setActiveTool={setActiveTool} />
-              {contextMenu && (
-                <ContextMenu
-                  contextMenu={contextMenu}
-                  setContextMenu={setContextMenu}
-                  handleMenuItemClick={handleMenuItemClick}
-                  drawingEdgeSource={drawingEdgeSource}
-                  setDrawingEdgeSource={setDrawingEdgeSource}
-                />
-              )}
+              <GraphToolbar />
+              <ContextMenu handleMenuItemClick={handleMenuItemClick} />
               {drawingEdgeSource && (
                 <div style={{ position: 'absolute', top: 16, left: '50%', transform: 'translateX(-50%)', background: 'var(--brand-primary)', color: '#fff', padding: '8px 16px', borderRadius: 20, fontSize: 13, boxShadow: 'var(--shadow-md)', zIndex: 50, display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span>请点击希望连接的目标节点...</span>
@@ -172,21 +137,8 @@ export default function ResultPanel({
         <DetailPanel
           detail={detail}
           setDetail={setDetail}
-          editingProp={editingProp}
-          setEditingProp={setEditingProp}
-          editValue={editValue}
-          setEditValue={setEditValue}
-          savingProp={savingProp}
-          addingProp={addingProp}
-          setAddingProp={setAddingProp}
-          newPropKey={newPropKey}
-          setNewPropKey={setNewPropKey}
-          newPropValue={newPropValue}
-          setNewPropValue={setNewPropValue}
           handleSaveProp={handleSaveProp}
           handleDeleteProp={handleDeleteProp}
-          schemaLabels={schemaLabels}
-          schemaRelTypes={schemaRelTypes}
           handleSaveTempEntity={handleSaveTempEntity}
           handleCancelTempEntity={handleCancelTempEntity}
         />

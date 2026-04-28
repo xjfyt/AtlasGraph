@@ -1,24 +1,19 @@
 import { IconPanelLeft } from "./icons";
 import "./Header.css";
+import { useUIStore } from "../store/uiStore";
+import { useDBStore } from "../store/dbStore";
 
-export interface HeaderProps {
-  sidebarCollapsed: boolean;
-  setSidebarCollapsed: (v: boolean) => void;
-  connected: boolean;
-  readOnly: boolean;
-  autoCreatedDb: boolean;
-  dbType: string;
-  uri: string;
-  lbugPath: string;
-  kuzuPath: string;
-  databases: any[];
-  selectedDb: string;
-  user: string;
-}
+export default function Header() {
+  const { sidebarCollapsed, setSidebarCollapsed } = useUIStore();
+  const { dbType, uri, lbugPath, kuzuPath, engineStates, user } = useDBStore();
 
-export default function Header({
-  sidebarCollapsed, setSidebarCollapsed, connected, readOnly, autoCreatedDb, dbType, uri, lbugPath, kuzuPath, databases, selectedDb, user
-}: HeaderProps) {
+  const state = engineStates[dbType];
+  const connected = state?.connected ?? false;
+  const readOnly = state?.readOnly ?? false;
+  const autoCreatedDb = state?.autoCreatedDb ?? false;
+  const databases = state?.databases ?? [];
+  const selectedDb = state?.selectedDb ?? "default";
+
   const instanceLabel = dbType === "neo4j" ? uri : dbType === "kuzu" ? kuzuPath : lbugPath;
   return (
     <div className="topbar">

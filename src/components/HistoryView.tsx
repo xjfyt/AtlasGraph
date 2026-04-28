@@ -1,21 +1,11 @@
 import { IconHistory } from "./icons";
 import "./HistoryView.css";
+import { useGraphStore } from "../store/graphStore";
+import { useUIStore } from "../store/uiStore";
 
-interface HistoryItem {
-  query: string;
-  timestamp: number;
-  nodeCount: number;
-  edgeCount: number;
-}
-
-export interface HistoryViewProps {
-  history: HistoryItem[];
-  setHistory: (v: HistoryItem[]) => void;
-  setQuery: (q: string) => void;
-  setActiveNav: (nav: string) => void;
-}
-
-export default function HistoryView({ history, setHistory, setQuery, setActiveNav }: HistoryViewProps) {
+export default function HistoryView() {
+  const { history, setQuery, clearHistory } = useGraphStore();
+  const { setActiveNav } = useUIStore();
   return (
     <div className="history-panel">
       <div className="form-section-title" style={{ marginBottom: 12 }}>最近执行的查询</div>
@@ -45,7 +35,7 @@ export default function HistoryView({ history, setHistory, setQuery, setActiveNa
           ))}
           <button
             className="history-clear-btn"
-            onClick={() => setHistory([])}
+            onClick={clearHistory}
           >
             清除历史记录
           </button>

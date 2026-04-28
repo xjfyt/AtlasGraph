@@ -1,14 +1,11 @@
 import { useState, useRef, useEffect } from "react";
 import { MousePointer2, PlusSquare, MoveRight, GripHorizontal } from "lucide-react";
+import { useUIStore } from "../store/uiStore";
 
 export type ActiveTool = "pointer" | "create_node" | "create_edge";
 
-interface GraphToolbarProps {
-  activeTool: ActiveTool;
-  setActiveTool: (tool: ActiveTool) => void;
-}
-
-export default function GraphToolbar({ activeTool, setActiveTool }: GraphToolbarProps) {
+export default function GraphToolbar() {
+  const { activeTool, setActiveTool } = useUIStore();
   const [position, setPosition] = useState({ x: 16, y: 100 }); 
   const [isDragging, setIsDragging] = useState(false);
   const dragRef = useRef({ startX: 0, startY: 0, initX: 0, initY: 0 });

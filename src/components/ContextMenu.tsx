@@ -1,24 +1,14 @@
 import { Maximize, EyeOff, PinOff, Link, Undo2, Trash2 } from "lucide-react";
-
-export interface ContextMenuState {
-  type: "node" | "edge";
-  id: string;
-  x: number;
-  y: number;
-  edgeCount?: number;
-}
+import { useUIStore } from "../store/uiStore";
 
 export interface ContextMenuProps {
-  contextMenu: ContextMenuState;
-  setContextMenu: (v: ContextMenuState | null) => void;
   handleMenuItemClick: (action: string) => void;
-  drawingEdgeSource: string | null;
-  setDrawingEdgeSource: (v: string | null) => void;
 }
 
-export default function ContextMenu({
-  contextMenu, setContextMenu, handleMenuItemClick, drawingEdgeSource: _drawingEdgeSource, setDrawingEdgeSource: _setDrawingEdgeSource
-}: ContextMenuProps) {
+export default function ContextMenu({ handleMenuItemClick }: ContextMenuProps) {
+  const { contextMenu, setContextMenu } = useUIStore();
+
+  if (!contextMenu) return null;
   return (
     <div
       className="context-menu"

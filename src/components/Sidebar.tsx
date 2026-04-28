@@ -1,22 +1,42 @@
-import React from "react";
+import React, { useRef, useCallback } from "react";
 import "./Sidebar.css";
 import { IconDatabase, IconHistory, IconPalette, IconChevronRight, IconChevronLeft } from "./icons";
+import { useUIStore } from "../store/uiStore";
 
 interface SidebarProps {
-  activeNav: string;
-  setActiveNav: (nav: string) => void;
-  sidebarCollapsed: boolean;
-  setSidebarCollapsed: (v: boolean) => void;
-  sidebarWidth: number;
-  handleResizeStart: (e: React.MouseEvent) => void;
-  sidebarRef: React.RefObject<HTMLDivElement | null>;
   children: React.ReactNode;
 }
 
-export default function Sidebar({
-  activeNav, setActiveNav, sidebarCollapsed, setSidebarCollapsed,
-  sidebarWidth, handleResizeStart, sidebarRef, children
-}: SidebarProps) {
+export default function Sidebar({ children }: SidebarProps) {
+  const {
+    activeNav, setActiveNav, sidebarCollapsed, setSidebarCollapsed,
+    sidebarWidth, setSidebarWidth
+  } = useUIStore();
+  
+  const sidebarRef = useRef<HTMLDivElement>(null);
+  const isDragging = useRef(false);
+
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    isDragging.current = true;
+    const startX = e.clientX;
+    const startWidth = sidebarWidth;
+
+    const onMove = (ev: MouseEvent) => {
+      if (!isDragging.current) return;
+      const delta = ev.clientX - startX;
+      const newWidth = Math.max(220, Math.min(500, startWidth + delta));
+      setSidebarWidth(newWidth);
+    };
+    const onUp = () => {
+      isDragging.current = false;
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  }, [sidebarWidth, setSidebarWidth]);
+
   return (
     <>
       <nav className="nav-rail">

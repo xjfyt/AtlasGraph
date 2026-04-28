@@ -1,23 +1,15 @@
 import "./QueryEditor.css";
 import { IconSpinner, IconPlay } from "./icons";
+import { useGraphStore } from "../store/graphStore";
+import { useDBStore } from "../store/dbStore";
+import { useDatabaseActions } from "../hooks/useDatabaseActions";
 
-interface QueryEditorProps {
-  dbType: string;
-  selectedDb: string;
-  query: string;
-  setQuery: (q: string) => void;
-  loading: boolean;
-  handleExecute: () => void;
-}
+export default function QueryEditor() {
+  const { query, setQuery, loading } = useGraphStore();
+  const { dbType, engineStates } = useDBStore();
+  const { handleExecute } = useDatabaseActions();
 
-export default function QueryEditor({
-  dbType,
-  selectedDb,
-  query,
-  setQuery,
-  loading,
-  handleExecute
-}: QueryEditorProps) {
+  const selectedDb = engineStates[dbType]?.selectedDb || "default";
   return (
     <div className="query-editor">
       <div className="query-body">
@@ -30,12 +22,12 @@ export default function QueryEditor({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) handleExecute();
+            if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) handleExecute(query);
           }}
           placeholder="MATCH (n) RETURN n LIMIT 25"
           spellCheck={false}
         />
-        <button className="query-run-btn" onClick={handleExecute} disabled={loading} title="执行查询 (Ctrl+Enter)">
+        <button className="query-run-btn" onClick={() => handleExecute(query)} disabled={loading} title="执行查询 (Ctrl+Enter)">
           {loading ? <IconSpinner /> : <IconPlay />}
         </button>
       </div>
