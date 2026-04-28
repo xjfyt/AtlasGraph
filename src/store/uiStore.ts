@@ -27,7 +27,7 @@ export const useUIStore = create<UIStore>((set) => ({
   activeNav: "database",
   activeTab: "graph",
   sidebarCollapsed: false,
-  sidebarWidth: 280,
+  sidebarWidth: 320,
   detail: null,
   contextMenu: null,
   activeTool: "pointer",

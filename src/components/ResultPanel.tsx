@@ -34,18 +34,14 @@ export default function ResultPanel({
   const { activeTab, setActiveTab, detail, setDetail, setActiveTool } = useUIStore();
 
   const getTabBtnClass = (isActive: boolean) => {
-    return `px-4 py-3 border-none bg-transparent text-[13px] font-medium cursor-pointer border-b-2 flex items-center gap-2 transition-all duration-150 [&>svg]:w-4 [&>svg]:h-4 [&>svg]:shrink-0 [&>svg]:mr-1 ${
-      isActive
-        ? "text-accent border-accent font-bold"
-        : "text-text-faint border-transparent hover:text-text-primary"
-    }`;
+    return `tab-btn ${isActive ? "is-active" : ""}`;
   };
 
   return (
     <div className="flex-1 min-h-0 flex gap-0 overflow-hidden">
-      <div className={`flex-1 min-w-0 bg-bg-card rounded-lg border border-border-primary flex flex-col overflow-hidden shadow-sm transition-[border-radius] duration-200 ${detail ? "rounded-tr-none rounded-br-none border-r-0" : ""}`}>
-        <div className="flex items-center justify-between border-b border-border-light bg-bg-secondary px-3.5 shrink-0">
-          <div className="flex gap-0">
+      <div className={`flex-1 min-w-0 bg-bg-card rounded-[10px] border border-border-primary flex flex-col overflow-hidden shadow-sm transition-[border-radius] duration-200 ${detail ? "rounded-tr-none rounded-br-none border-r-0" : ""}`}>
+        <div className="result-tabs">
+          <div className="result-tabs-left">
             <button className={getTabBtnClass(activeTab === "graph")} onClick={() => setActiveTab("graph")}>
               <IconGraph />Graph
             </button>
@@ -56,8 +52,8 @@ export default function ResultPanel({
               <IconRaw />RAW
             </button>
           </div>
-          <div className="flex gap-1">
-            <button className="icon-btn" title="全屏"><IconMaximize /></button>
+          <div className="result-tabs-right">
+            <button className="tab-icon-btn" title="全屏"><IconMaximize /></button>
           </div>
         </div>
 
@@ -76,7 +72,7 @@ export default function ResultPanel({
               <GraphToolbar />
               <ContextMenu handleMenuItemClick={handleMenuItemClick} />
               {drawingEdgeSource && (
-                <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-accent text-white px-4 py-2 rounded-full text-[13px] shadow-md z-50 flex items-center gap-2">
+                <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-accent text-white px-4 py-2.5 rounded-full text-[13px] shadow-md z-50 flex items-center gap-2">
                   <span>请点击希望连接的目标节点...</span>
                   <button onClick={() => {
                     setDrawingEdgeSource(null);
@@ -89,58 +85,54 @@ export default function ResultPanel({
             </>
           )}
           {activeTab === "table" && (
-            <div className="absolute inset-0 overflow-auto p-3.5 bg-bg-secondary custom-scrollbar">
+            <div className="table-view custom-scrollbar">
               {graphData.nodes.length > 0 ? (
-                <table className="w-full border-collapse text-xs">
+                <table className="data-table">
                   <thead>
                     <tr>
-                      <th className="text-left px-3 py-2 bg-bg-tertiary border-b-2 border-border-primary font-semibold text-text-primary sticky top-0">ID</th>
-                      <th className="text-left px-3 py-2 bg-bg-tertiary border-b-2 border-border-primary font-semibold text-text-primary sticky top-0">类型</th>
-                      <th className="text-left px-3 py-2 bg-bg-tertiary border-b-2 border-border-primary font-semibold text-text-primary sticky top-0">标签/关系</th>
-                      <th className="text-left px-3 py-2 bg-bg-tertiary border-b-2 border-border-primary font-semibold text-text-primary sticky top-0">属性</th>
+                      <th>ID</th>
+                      <th>类型</th>
+                      <th>标签/关系</th>
+                      <th>属性</th>
                     </tr>
                   </thead>
                   <tbody>
                     {graphData.nodes.map((n: any) => (
-                      <tr key={`n-${n.id}`} onClick={() => handleNodeClick(String(n.id))} className="cursor-pointer hover:bg-bg-hover">
-                        <td className="px-3 py-1.5 border-b border-border-light text-text-primary">{n.id}</td>
-                        <td className="px-3 py-1.5 border-b border-border-light text-text-primary">
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-blue-100 text-blue-800 dark:bg-blue-500/20 dark:text-blue-300">节点</span>
-                        </td>
-                        <td className="px-3 py-1.5 border-b border-border-light text-text-primary">{(n.properties?._labels || []).join(", ")}</td>
-                        <td className="px-3 py-1.5 border-b border-border-light text-text-primary font-mono text-[11px] max-w-[300px] overflow-hidden text-ellipsis whitespace-nowrap">{n.properties?.name || JSON.stringify(n.properties).slice(0, 80)}</td>
+                      <tr key={`n-${n.id}`} onClick={() => handleNodeClick(String(n.id))} className="cursor-pointer">
+                        <td>{n.id}</td>
+                        <td><span className="data-type-badge node">节点</span></td>
+                        <td>{(n.properties?._labels || []).join(", ")}</td>
+                        <td className="prop-cell">{n.properties?.name || JSON.stringify(n.properties).slice(0, 80)}</td>
                       </tr>
                     ))}
                     {graphData.edges.map((e: any) => (
-                      <tr key={`e-${e.id}`} onClick={() => handleEdgeClick(String(e.id))} className="cursor-pointer hover:bg-bg-hover">
-                        <td className="px-3 py-1.5 border-b border-border-light text-text-primary">{e.id}</td>
-                        <td className="px-3 py-1.5 border-b border-border-light text-text-primary">
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-pink-100 text-pink-800 dark:bg-pink-500/20 dark:text-pink-300">关系</span>
-                        </td>
-                        <td className="px-3 py-1.5 border-b border-border-light text-text-primary">{e.label}</td>
-                        <td className="px-3 py-1.5 border-b border-border-light text-text-primary font-mono text-[11px] max-w-[300px] overflow-hidden text-ellipsis whitespace-nowrap">{e.source} → {e.target}</td>
+                      <tr key={`e-${e.id}`} onClick={() => handleEdgeClick(String(e.id))} className="cursor-pointer">
+                        <td>{e.id}</td>
+                        <td><span className="data-type-badge edge">关系</span></td>
+                        <td>{e.label}</td>
+                        <td className="prop-cell">{e.source} → {e.target}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               ) : (
-                <div className="h-full flex items-center justify-center text-text-faint font-medium">尚无数据</div>
+                <div className="empty-state">尚无数据，执行查询后会在这里显示表格结果</div>
               )}
             </div>
           )}
           {activeTab === "raw" && (
-            <div className="absolute inset-0 overflow-auto p-3.5 bg-bg-secondary custom-scrollbar">
+            <div className="table-view custom-scrollbar">
               {graphData.nodes.length > 0 ? (
-                <pre className="bg-bg-card border border-border-primary p-3.5 rounded-lg text-xs font-mono text-text-code whitespace-pre-wrap break-all">{JSON.stringify(graphData, null, 2)}</pre>
+                <pre>{JSON.stringify(graphData, null, 2)}</pre>
               ) : (
-                <div className="h-full flex items-center justify-center text-text-faint font-medium">尚无数据</div>
+                <div className="empty-state">尚无数据，执行查询后会在这里显示原始结果</div>
               )}
             </div>
           )}
         </div>
 
         <div className="h-[30px] min-h-[30px] bg-bg-secondary border-t border-border-light flex items-center px-3.5 text-[11px] text-text-faint gap-4">
-          {execTime !== null && <span>Started streaming {graphData.nodes.length + graphData.edges.length} records after {execTime} ms</span>}
+          {execTime !== null && <span>已在 {execTime} ms 后开始流式返回，共 {graphData.nodes.length + graphData.edges.length} 条记录</span>}
         </div>
       </div>
 

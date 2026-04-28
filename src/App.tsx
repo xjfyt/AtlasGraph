@@ -567,59 +567,63 @@ function App() {
         {uiStore.activeNav === "database" && (
           <>
             <ConnectView />
-            <div className="form-section pt-4 border-t border-border-light">
+            <div className="form-section">
               <div className="form-section-title">图谱概览</div>
-              <div className="mb-2" style={{ marginTop: 10 }}>
-                <div className="flex justify-between items-center mb-1">
+              <div>
+                <div className="mb-2">
                   <span className="text-[13px] font-semibold text-text-heading">所有实体 ({dbStore.schemaStats ? dbStore.schemaStats.total_nodes : graphStore.graphData.nodes.length})</span>
                 </div>
-                <div
-                  className="flex items-center gap-2 px-1.5 py-1 mb-1.5 text-xs rounded transition-colors duration-150 cursor-pointer hover:bg-bg-hover"
-                  onClick={() => handleExecute(`MATCH (n) RETURN n LIMIT 25`)}
-                  title="点击查询所有实体"
-                >
-                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: "#cbd5e1" }} />
-                  <span className="text-text-faint font-mono text-[10px]">*({dbStore.schemaStats ? dbStore.schemaStats.total_nodes : graphStore.graphData.nodes.length})</span>
-                  <span className="text-text-primary font-medium">所有实体</span>
-                </div>
-                {(dbStore.schemaStats ? dbStore.schemaStats.labels : Object.entries(labelCounts).map(([name, count]) => ({ name, count }))).map((lbl: any, i: number) => (
+                <div className="section-list">
                   <div
-                    key={lbl.name}
-                    className="flex items-center gap-2 px-1.5 py-1 mb-1.5 text-xs rounded transition-colors duration-150 cursor-pointer hover:bg-bg-hover"
-                    onClick={() => handleExecute(`MATCH (n:\`${lbl.name}\`) RETURN n LIMIT 25`)}
-                    title={`点击查询 ${lbl.name} 实体`}
+                    className="section-item"
+                    onClick={() => handleExecute(`MATCH (n) RETURN n LIMIT 25`)}
+                    title="点击查询所有实体"
                   >
-                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: GRAPH_COLORS[i % GRAPH_COLORS.length] }} />
-                    <span className="text-text-faint font-mono text-[10px]">*({lbl.count})</span>
-                    <span className="text-text-primary font-medium">{lbl.name} ({lbl.count})</span>
+                    <span className="section-dot" style={{ background: "#cbd5e1" }} />
+                    <span className="section-meta">*({dbStore.schemaStats ? dbStore.schemaStats.total_nodes : graphStore.graphData.nodes.length})</span>
+                    <span className="section-label">所有实体</span>
                   </div>
-                ))}
+                  {(dbStore.schemaStats ? dbStore.schemaStats.labels : Object.entries(labelCounts).map(([name, count]) => ({ name, count }))).map((lbl: any, i: number) => (
+                    <div
+                      key={lbl.name}
+                      className="section-item"
+                      onClick={() => handleExecute(`MATCH (n:\`${lbl.name}\`) RETURN n LIMIT 25`)}
+                      title={`点击查询 ${lbl.name} 实体`}
+                    >
+                      <span className="section-dot" style={{ background: GRAPH_COLORS[i % GRAPH_COLORS.length] }} />
+                      <span className="section-meta">*({lbl.count})</span>
+                      <span className="section-label">{lbl.name} ({lbl.count})</span>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="mb-2" style={{ marginTop: 24 }}>
-                <div className="flex justify-between items-center mb-2">
+              <div className="mt-4">
+                <div className="mb-2">
                   <span className="text-[13px] font-semibold text-text-heading">所有关系 ({dbStore.schemaStats ? dbStore.schemaStats.total_edges : graphStore.graphData.edges.length})</span>
                 </div>
-                <div
-                  className="flex items-center gap-2 px-1.5 py-1 mb-1.5 text-xs rounded transition-colors duration-150 cursor-pointer hover:bg-bg-hover"
-                  onClick={() => handleExecute(`MATCH p=()-[]->() RETURN p LIMIT 25`)}
-                  title="点击查询所有关系"
-                >
-                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: "#94a3b8" }} />
-                  <span className="text-text-faint font-mono text-[10px]">*({dbStore.schemaStats ? dbStore.schemaStats.total_edges : graphStore.graphData.edges.length})</span>
-                  <span className="text-text-primary font-medium">所有关系</span>
-                </div>
-                {(dbStore.schemaStats ? dbStore.schemaStats.rel_types : Object.entries(typeCounts).map(([name, count]) => ({ name, count }))).map((rel: any) => (
+                <div className="section-list">
                   <div
-                    key={rel.name}
-                    className="flex items-center gap-2 px-1.5 py-1 mb-1.5 text-xs rounded transition-colors duration-150 cursor-pointer hover:bg-bg-hover"
-                    onClick={() => handleExecute(`MATCH p=()-[r:\`${rel.name}\`]->() RETURN p LIMIT 25`)}
-                    title={`点击查询 ${rel.name} 关系`}
+                    className="section-item"
+                    onClick={() => handleExecute(`MATCH p=()-[]->() RETURN p LIMIT 25`)}
+                    title="点击查询所有关系"
                   >
-                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: "#94a3b8" }} />
-                    <span className="text-text-faint font-mono text-[10px]">*({rel.count})</span>
-                    <span className="text-text-primary font-medium">{rel.name} ({rel.count})</span>
+                    <span className="section-dot" style={{ background: "#94a3b8" }} />
+                    <span className="section-meta">*({dbStore.schemaStats ? dbStore.schemaStats.total_edges : graphStore.graphData.edges.length})</span>
+                    <span className="section-label">所有关系</span>
                   </div>
-                ))}
+                  {(dbStore.schemaStats ? dbStore.schemaStats.rel_types : Object.entries(typeCounts).map(([name, count]) => ({ name, count }))).map((rel: any) => (
+                    <div
+                      key={rel.name}
+                      className="section-item"
+                      onClick={() => handleExecute(`MATCH p=()-[r:\`${rel.name}\`]->() RETURN p LIMIT 25`)}
+                      title={`点击查询 ${rel.name} 关系`}
+                    >
+                      <span className="section-dot" style={{ background: "#94a3b8" }} />
+                      <span className="section-meta">*({rel.count})</span>
+                      <span className="section-label">{rel.name} ({rel.count})</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </>
@@ -630,7 +634,7 @@ function App() {
 
       <main className="flex-1 flex flex-col min-w-0 bg-bg-workspace overflow-hidden">
         <Header />
-        <div className="flex-1 flex flex-col p-3 gap-3 overflow-hidden">
+        <div className="flex-1 flex flex-col p-4 gap-3 overflow-hidden">
           <QueryEditor />
           {graphStore.error && (
             <div className="error-box">

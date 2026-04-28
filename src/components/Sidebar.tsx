@@ -47,10 +47,8 @@ export default function Sidebar({ children }: SidebarProps) {
   return (
     <>
       <nav className="w-14 min-w-[56px] bg-nav-bg flex flex-col items-center py-4 gap-1 z-20 border-r border-border-primary">
-        <div className="w-8 h-8 mb-4 rounded-lg flex items-center justify-center text-white font-bold text-[13px] bg-white overflow-hidden shadow-sm shrink-0">
-          <img src="/favicon.png" alt="KG" className="w-full h-full object-contain" />
-        </div>
-        
+        <img src="/favicon.png" alt="KG" className="w-9 h-9 mb-4 rounded-lg object-contain bg-white shrink-0" />
+
         <button className={getNavBtnClass(activeNav === "database")} onClick={() => { setActiveNav("database"); setSidebarCollapsed(false); }} title="查询与连接">
           <IconDatabase className="w-5 h-5 shrink-0" />
         </button>
@@ -78,17 +76,17 @@ export default function Sidebar({ children }: SidebarProps) {
         style={{ width: sidebarCollapsed ? 0 : sidebarWidth }}
       >
         <aside className="w-full bg-bg-primary border-r border-border-primary flex flex-col overflow-hidden h-full">
-          <div className="px-4 pt-4 pb-3 border-b border-border-light flex items-center justify-between">
+          <div className="px-5 pt-4 pb-3 border-b border-border-light flex items-center justify-between gap-3">
             {!sidebarCollapsed && (
-              <div>
-                <h2 className="text-[15px] font-bold text-text-heading m-0">AtlasGraph</h2>
+              <div className="min-w-0">
+                <h2 className="text-[15px] font-bold text-text-heading m-0 leading-tight">AtlasGraph</h2>
                 <div className="text-[11px] text-text-muted mt-0.5">
                   知识图谱可视化工具
                 </div>
               </div>
             )}
             <button
-              className="w-7 h-7 border border-border-primary bg-bg-secondary text-text-muted rounded-md cursor-pointer flex items-center justify-center transition-all duration-150 hover:bg-bg-hover hover:text-text-primary"
+              className="w-7 h-7 rounded-md border border-border-primary bg-bg-secondary text-text-muted cursor-pointer flex items-center justify-center transition-all duration-150 hover:bg-bg-hover hover:text-text-primary shrink-0"
               onClick={() => setSidebarCollapsed(true)}
               title="收起侧边栏"
             >
@@ -96,15 +94,15 @@ export default function Sidebar({ children }: SidebarProps) {
             </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 custom-scrollbar">
+          <div className="flex-1 overflow-y-auto overflow-x-hidden px-5 py-4 custom-scrollbar">
             {children}
           </div>
         </aside>
 
         {!sidebarCollapsed && (
-          <div 
-            className="absolute top-0 -right-[3px] w-1.5 h-full cursor-col-resize z-15 bg-transparent hover:bg-accent hover:opacity-40" 
-            onMouseDown={handleResizeStart} 
+          <div
+            className="absolute top-0 -right-[3px] w-1.5 h-full cursor-col-resize z-15 bg-transparent hover:bg-accent hover:opacity-40"
+            onMouseDown={handleResizeStart}
           />
         )}
       </div>

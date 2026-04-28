@@ -7,9 +7,9 @@ export default function LbugForm({ lbugPath, setLbugPath, openReadOnly, setOpenR
     <>
       <div className="form-group">
         <label className="form-label">Ladybug 数据库路径</label>
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+        <div className="flex gap-2 items-center">
           <input
-            className="form-input"
+            className="form-input flex-1 min-w-0"
             type="text"
             value={lbugPath}
             onChange={(e) => {
@@ -18,12 +18,10 @@ export default function LbugForm({ lbugPath, setLbugPath, openReadOnly, setOpenR
               setLbugPath?.(val);
             }}
             placeholder="./data/db"
-            style={{ flex: 1, minWidth: 0, padding: "8px 12px" }}
           />
           <button
             className="icon-btn"
             title="选择本地 Ladybug 数据库文件"
-            style={{ width: '35px', height: '35px', flexShrink: 0, border: '1px solid var(--border)', background: 'var(--bg-primary)' }}
             onClick={async () => {
               try {
                 const selected = await open({
