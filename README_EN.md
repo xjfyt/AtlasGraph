@@ -27,6 +27,9 @@ The current version natively supports the following three major graph driving en
 > After an engine is connected, the original "Connect" button changes to "Disconnect". Switching to another engine no longer forces the previous one to disconnect, so `Neo4j`, `Ladybug`, and `Kuzu` can keep their own connection states independently.
 > In read-only mode, queries and graph browsing still work, but write operations are rejected by the underlying database.
 >
+> 💾 **Auto-create local databases**:
+> If the configured `Ladybug` or `Kuzu` path does not exist on disk, the application will automatically create an empty database at that path and open it on connect. The top status bar shows a "New DB" tag, reminding you to create schemas / import data before running queries.
+>
 > ⚠️ **Concurrency limitation**:
 > Ladybug does not support opening the same database as "one read-write instance + other read-only instances" at the same time; only "one read-write instance" or "multiple read-only instances" are allowed.
 > If a read-write process is already running, a manually selected read-only open will also fail. Close all read-write processes using that database and try again.
@@ -77,27 +80,46 @@ After deep decoupling and refactoring, a highly maintainable code architecture h
 
 ```text
 AtlasGraph/
-├── src/                       # Frontend Layer (React + TypeScript)
-│   ├── App.tsx                # App root component along with state and routing system branches
+├── src/                       # Frontend Layer (React + TypeScript + Tailwind v4)
+│   ├── App.tsx                # App root component, composes business areas and wires up global stores
+│   ├── App.css                # Global styles & CSS variable themes (light / dark)
 │   ├── components/            # UI components collection
 │   │   ├── engines/           # Dedicated connection forms and type libraries for supported DB engines
 │   │   │   ├── types.ts       # Collection of all property interfaces for connection interfaces
 │   │   │   ├── Neo4jForm.tsx  # Neo4j panel
-│   │   │   ├── LbugForm.tsx   # Ladybug panel
-│   │   │   └── KuzuForm.tsx   # Kuzu panel
+│   │   │   ├── LbugForm.tsx   # Ladybug panel (with read-only checkbox)
+│   │   │   └── KuzuForm.tsx   # Kuzu panel (with read-only checkbox)
 │   │   ├── ConnectView.tsx    # Connection center and dynamic panel entry dashboard
+│   │   ├── Header.tsx         # Top status bar (instance / database / user / engine)
+│   │   ├── Sidebar.tsx        # Left nav rail and resizable side panel
+│   │   ├── QueryEditor.tsx    # Cypher query input
+│   │   ├── ResultPanel.tsx    # Container switching Graph / Table / RAW views
 │   │   ├── GraphCanvas.tsx    # Encapsulated @neo4j-nvl module rendering canvas
+│   │   ├── GraphToolbar.tsx   # Floating canvas toolbar (pointer / create node / draw edge)
 │   │   ├── DetailPanel.tsx    # Graph property CRUD side control console
-│   │   └── ContextMenu.tsx    # Custom polymorphic multi-select floating interactive menu grid control system
+│   │   ├── HistoryView.tsx    # Cypher execution history panel
+│   │   ├── ThemeView.tsx      # Light / dark / system theme switcher
+│   │   └── ContextMenu.tsx    # Polymorphic right-click menu for nodes / edges
+│   ├── store/                 # Zustand global state slices
+│   │   ├── dbStore.ts         # Per-engine connection params and connection state
+│   │   ├── graphStore.ts      # Graph data, temp data, loading & error state
+│   │   └── uiStore.ts         # Theme, sidebar, tab, detail and context-menu UI state
+│   ├── hooks/                 # Reusable business hooks
+│   │   └── useDatabaseActions.ts  # Connect / switch DB / execute query actions
+│   ├── utils/                 # Shared utilities
+│   │   └── dbUtils.ts         # Cypher literal escaping, Lbug ID offset parsing, error humanizing
+│   └── types/                 # Project-level TypeScript types
+│       └── index.ts           # Shared interfaces & enums (DetailInfo / HistoryItem ...)
 ├── src-tauri/                 # Tauri security system and Rust native glue communication hub
 │   ├── src/
 │   │   ├── database/          # Decoupled and modularized data parsing engine driver cluster
 │   │   │   ├── mod.rs         # Universal gateway communication proxy entry and API layer
+│   │   │   ├── error.rs       # Unified database error type powered by thiserror
 │   │   │   ├── neo4j.rs       # Neo4j secure communication underlying driver and message processor
-│   │   │   ├── lbug.rs        # Ladybug operation mounting secure communication implementation
+│   │   │   ├── lbug.rs        # Ladybug operation mounting & read-only fallback implementation
 │   │   │   └── kuzu.rs        # Kuzu specific protocol connection and control channel processing mechanism
-│   │   ├── main.rs            # Global underlying startup and project initialization defense center
-│   │   └── lib.rs             # Tauri Commands interaction interface registration, interception, and validation
+│   │   ├── main.rs            # Global underlying startup and project initialization entry
+│   │   └── lib.rs             # Tauri Commands interaction interface registration & validation
 │   └── Cargo.toml             # Dependency library control and macro compilation feature toggle config file
 ```
 

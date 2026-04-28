@@ -26,6 +26,10 @@ AtlasGraph 旨在为多种图数据库提供一个统一的视图与编辑接入
 > 各引擎连接成功后，原“连接”按钮会切换为“断开”；切换到其他引擎时不会自动断开已有连接，因此 `Neo4j`、`Ladybug`、`Kuzu` 可以分别保持各自的连接状态。
 > 在只读模式下，查询与图谱浏览仍可正常使用，但写入类操作会被底层数据库拒绝。
 >
+> 💾 **本地数据库自动创建**：
+> 若填写的 `Ladybug` 或 `Kuzu` 路径在磁盘上不存在，连接时应用会自动创建一个空库并打开，
+> 顶部状态栏会显示「新建库」标记，提示需要先建表/导入数据后再查询。
+>
 > ⚠️ **并发限制说明**：
 > Ladybug 底层不支持“一个读写实例 + 其他只读实例”同时打开同一数据库；仅允许“一个读写实例”或“多个只读实例”的并发模式。
 > 如果当前已有读写进程在运行，那么手动选择只读打开也会失败；请先关闭所有占用该数据库的读写进程后再重试。
@@ -76,27 +80,46 @@ AtlasGraph 旨在为多种图数据库提供一个统一的视图与编辑接入
 
 ```text
 AtlasGraph/
-├── src/                       # 前端层 (React + TypeScript)
-│   ├── App.tsx                # 应用根组件以及状态与路由系统分支
+├── src/                       # 前端层 (React + TypeScript + Tailwind v4)
+│   ├── App.tsx                # 应用根组件，组合各业务区域并接入全局 Store
+│   ├── App.css                # 全局样式与 CSS 变量主题（浅色 / 深色双主题）
 │   ├── components/            # UI 切片集
 │   │   ├── engines/           # 各支持数据库引擎的专用连接表单和类型库
 │   │   │   ├── types.ts       # 连接界面的属性总接口合集
 │   │   │   ├── Neo4jForm.tsx  # Neo4j 面板
-│   │   │   ├── LbugForm.tsx   # Ladybug 面板
-│   │   │   └── KuzuForm.tsx   # Kuzu 面板
+│   │   │   ├── LbugForm.tsx   # Ladybug 面板（含只读勾选）
+│   │   │   └── KuzuForm.tsx   # Kuzu 面板（含只读勾选）
 │   │   ├── ConnectView.tsx    # 连接中心和动态面板入口展示板
+│   │   ├── Header.tsx         # 顶部状态栏（实例 / 数据库 / 用户 / 引擎）
+│   │   ├── Sidebar.tsx        # 左侧导航栏与可拖拽侧边面板
+│   │   ├── QueryEditor.tsx    # Cypher 查询输入框
+│   │   ├── ResultPanel.tsx    # Graph / Table / RAW 三视图切换容器
 │   │   ├── GraphCanvas.tsx    # 封装 @neo4j-nvl 模块渲染画板
+│   │   ├── GraphToolbar.tsx   # 画布右侧工具条（指针 / 建节点 / 拉关系）
 │   │   ├── DetailPanel.tsx    # 图属性增删查改侧控台
-│   │   └── ContextMenu.tsx    # 自定义多态多选浮动交互菜单网格控制系统
+│   │   ├── HistoryView.tsx    # Cypher 执行历史记录面板
+│   │   ├── ThemeView.tsx      # 浅色 / 深色 / 跟随系统的主题切换
+│   │   └── ContextMenu.tsx    # 节点 / 关系右键多态浮动菜单
+│   ├── store/                 # Zustand 全局状态切片
+│   │   ├── dbStore.ts         # 各引擎连接参数与连接态（按引擎独立维护）
+│   │   ├── graphStore.ts      # 图谱数据、临时数据、加载与错误状态
+│   │   └── uiStore.ts         # 主题、侧边栏、Tab、详情、上下文菜单等 UI 状态
+│   ├── hooks/                 # 复用业务 Hook
+│   │   └── useDatabaseActions.ts  # 连接 / 切换 / 执行查询的封装动作
+│   ├── utils/                 # 通用工具
+│   │   └── dbUtils.ts         # Cypher 字面量转义、Lbug ID 偏移解析、错误友好化
+│   └── types/                 # 项目级 TypeScript 类型
+│       └── index.ts           # 共享接口与枚举（DetailInfo / HistoryItem 等）
 ├── src-tauri/                 # Tauri 安全系统和 Rust 原生胶水通讯中转总汇合包
 │   ├── src/
 │   │   ├── database/          # 解耦模块化的各数据解析引擎驱动群落集
-│   │   │   ├── mod.rs         # 通用网关通讯代理入口与所有公用总接查表接口层级
-│   │   │   ├── neo4j.rs       # Neo4j 安全通讯底层驱动和通道信件处理器模块
-│   │   │   ├── lbug.rs        # Ladybug 操作挂载安全通讯实现模块
-│   │   │   └── kuzu.rs        # Kuzu Kuzu 特定协议联通及控制通道处理机制
-│   │   ├── main.rs            # 全局底层起步以及项目初始化防线总中心
-│   │   └── lib.rs             # 用于系统通讯 Tauri Commands 交互接口调用登记拦截验证处
+│   │   │   ├── mod.rs         # 通用网关通讯代理入口与公用接口层
+│   │   │   ├── error.rs       # 基于 thiserror 的统一数据库错误类型
+│   │   │   ├── neo4j.rs       # Neo4j 安全通讯底层驱动模块
+│   │   │   ├── lbug.rs        # Ladybug 操作挂载与只读回退实现
+│   │   │   └── kuzu.rs        # Kuzu 特定协议联通及控制通道处理机制
+│   │   ├── main.rs            # 全局底层起步以及项目初始化总入口
+│   │   └── lib.rs             # 用于系统通讯 Tauri Commands 交互接口登记
 │   └── Cargo.toml             # 控制库依赖与宏编译裁切开关环境配置文件
 ```
 

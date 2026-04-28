@@ -2,7 +2,7 @@
   "name": "atlas-graph",
   "description": "一个知识图谱可视化工具",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.4",
   "type": "module",
   "scripts": {
     "dev": "vite",
