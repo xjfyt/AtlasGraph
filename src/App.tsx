@@ -367,29 +367,41 @@ function App() {
 
   // ===== 安全合并图谱数据 (防止缺节点导致 NVL 白屏) =====
   const mergeGraphData = useCallback((prev: { nodes: any[], edges: any[] }, result: { nodes: any[], edges: any[] }, append: boolean = false) => {
-    const newNodes = append ? [...prev.nodes] : [];
-    const newEdges = append ? [...prev.edges] : [];
+    const nodesMap = new Map<string, any>();
+    const edgesMap = new Map<string, any>();
+
+    if (append) {
+      prev.nodes.forEach(n => nodesMap.set(String(n.id), n));
+      prev.edges.forEach(e => {
+        const eid = String(e.id || `${e.source}-${e.target}`);
+        edgesMap.set(eid, e);
+      });
+    }
 
     result.nodes?.forEach((n: any) => {
-      if (!newNodes.find((pn) => String(pn.id) === String(n.id))) newNodes.push(n);
+      if (!nodesMap.has(String(n.id))) {
+        nodesMap.set(String(n.id), n);
+      }
     });
 
     result.edges?.forEach((e: any) => {
-      const eid = e.id || `${e.source}-${e.target}`;
-      if (!newEdges.find((pe) => String(pe.id || `${pe.source}-${pe.target}`) === String(eid))) newEdges.push(e);
+      const eid = String(e.id || `${e.source}-${e.target}`);
+      if (!edgesMap.has(eid)) {
+        edgesMap.set(eid, e);
+      }
     });
 
     // Safety check for InteractiveNvlWrapper: Ensure all edges have their nodes defined
-    newEdges.forEach(e => {
-      if (e.source && !newNodes.find(n => String(n.id) === String(e.source))) {
-        newNodes.push({ id: e.source, properties: { _labels: ["Unknown"] } });
+    for (const e of edgesMap.values()) {
+      if (e.source && !nodesMap.has(String(e.source))) {
+        nodesMap.set(String(e.source), { id: e.source, properties: { _labels: ["Unknown"] } });
       }
-      if (e.target && !newNodes.find(n => String(n.id) === String(e.target))) {
-        newNodes.push({ id: e.target, properties: { _labels: ["Unknown"] } });
+      if (e.target && !nodesMap.has(String(e.target))) {
+        nodesMap.set(String(e.target), { id: e.target, properties: { _labels: ["Unknown"] } });
       }
-    });
+    }
 
-    return { nodes: newNodes, edges: newEdges };
+    return { nodes: Array.from(nodesMap.values()), edges: Array.from(edgesMap.values()) };
   }, []);
 
   // ===== 添加历史记录 =====
