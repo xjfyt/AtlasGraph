@@ -562,66 +562,63 @@ function App() {
   }), [graphStore.graphData, graphStore.tempData]);
 
   return (
-    <div className="app-layout">
+    <div className="flex w-full h-screen overflow-hidden">
       <Sidebar>
         {uiStore.activeNav === "database" && (
           <>
             <ConnectView />
-            <div className="form-section schema-section">
+            <div className="form-section pt-4 border-t border-border-light">
               <div className="form-section-title">图谱概览</div>
-              <div className="overview-section" style={{ marginTop: 10 }}>
-                <div className="overview-row" style={{ marginBottom: 8 }}>
-                  <span className="label" style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-heading)' }}>所有实体 ({dbStore.schemaStats ? dbStore.schemaStats.total_nodes : graphStore.graphData.nodes.length})</span>
+              <div className="mb-2" style={{ marginTop: 10 }}>
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-[13px] font-semibold text-text-heading">所有实体 ({dbStore.schemaStats ? dbStore.schemaStats.total_nodes : graphStore.graphData.nodes.length})</span>
                 </div>
                 <div
-                  className="overview-label-row clickable"
+                  className="flex items-center gap-1.5 px-1 py-0.5 text-[11px] rounded transition-colors duration-150 cursor-pointer hover:bg-bg-hover"
                   onClick={() => handleExecute(`MATCH (n) RETURN n LIMIT 25`)}
                   title="点击查询所有实体"
                   style={{ marginBottom: 4 }}
                 >
-                  <span className="overview-dot" style={{ background: "#cbd5e1" }} />
-                  <span className="overview-label-text">*({dbStore.schemaStats ? dbStore.schemaStats.total_nodes : graphStore.graphData.nodes.length})</span>
-                  <span className="overview-label-name">所有实体</span>
+                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: "#cbd5e1" }} />
+                  <span className="text-text-faint font-mono text-[10px]">*({dbStore.schemaStats ? dbStore.schemaStats.total_nodes : graphStore.graphData.nodes.length})</span>
+                  <span className="text-text-primary font-medium">所有实体</span>
                 </div>
                 {(dbStore.schemaStats ? dbStore.schemaStats.labels : Object.entries(labelCounts).map(([name, count]) => ({ name, count }))).map((lbl: any, i: number) => (
                   <div
                     key={lbl.name}
-                    className="overview-label-row clickable"
+                    className="flex items-center gap-1.5 px-1 py-0.5 text-[11px] rounded transition-colors duration-150 cursor-pointer hover:bg-bg-hover"
                     onClick={() => handleExecute(`MATCH (n:\`${lbl.name}\`) RETURN n LIMIT 25`)}
                     title={`点击查询 ${lbl.name} 实体`}
-                    style={{ marginBottom: 4 }}
                   >
-                    <span className="overview-dot" style={{ background: GRAPH_COLORS[i % GRAPH_COLORS.length] }} />
-                    <span className="overview-label-text">*({lbl.count})</span>
-                    <span className="overview-label-name">{lbl.name} ({lbl.count})</span>
+                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: GRAPH_COLORS[i % GRAPH_COLORS.length] }} />
+                    <span className="text-text-faint font-mono text-[10px]">*({lbl.count})</span>
+                    <span className="text-text-primary font-medium">{lbl.name} ({lbl.count})</span>
                   </div>
                 ))}
               </div>
-              <div className="overview-section" style={{ marginTop: 16 }}>
-                <div className="overview-row" style={{ marginBottom: 8 }}>
-                  <span className="label" style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-heading)' }}>所有关系 ({dbStore.schemaStats ? dbStore.schemaStats.total_edges : graphStore.graphData.edges.length})</span>
+              <div className="mb-2" style={{ marginTop: 16 }}>
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-[13px] font-semibold text-text-heading">所有关系 ({dbStore.schemaStats ? dbStore.schemaStats.total_edges : graphStore.graphData.edges.length})</span>
                 </div>
                 <div
-                  className="overview-label-row clickable"
+                  className="flex items-center gap-1.5 px-1 py-0.5 text-[11px] rounded transition-colors duration-150 cursor-pointer hover:bg-bg-hover"
                   onClick={() => handleExecute(`MATCH p=()-[]->() RETURN p LIMIT 25`)}
                   title="点击查询所有关系"
-                  style={{ marginBottom: 4 }}
                 >
-                  <span className="overview-dot" style={{ background: "#94a3b8" }} />
-                  <span className="overview-label-text">*({dbStore.schemaStats ? dbStore.schemaStats.total_edges : graphStore.graphData.edges.length})</span>
-                  <span className="overview-label-name">所有关系</span>
+                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: "#94a3b8" }} />
+                  <span className="text-text-faint font-mono text-[10px]">*({dbStore.schemaStats ? dbStore.schemaStats.total_edges : graphStore.graphData.edges.length})</span>
+                  <span className="text-text-primary font-medium">所有关系</span>
                 </div>
                 {(dbStore.schemaStats ? dbStore.schemaStats.rel_types : Object.entries(typeCounts).map(([name, count]) => ({ name, count }))).map((rel: any) => (
                   <div
                     key={rel.name}
-                    className="overview-label-row clickable"
+                    className="flex items-center gap-1.5 px-1 py-0.5 text-[11px] rounded transition-colors duration-150 cursor-pointer hover:bg-bg-hover"
                     onClick={() => handleExecute(`MATCH p=()-[r:\`${rel.name}\`]->() RETURN p LIMIT 25`)}
                     title={`点击查询 ${rel.name} 关系`}
-                    style={{ marginBottom: 4 }}
                   >
-                    <span className="overview-dot" style={{ background: "#94a3b8" }} />
-                    <span className="overview-label-text">*({rel.count})</span>
-                    <span className="overview-label-name">{rel.name} ({rel.count})</span>
+                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: "#94a3b8" }} />
+                    <span className="text-text-faint font-mono text-[10px]">*({rel.count})</span>
+                    <span className="text-text-primary font-medium">{rel.name} ({rel.count})</span>
                   </div>
                 ))}
               </div>
@@ -632,9 +629,9 @@ function App() {
         {uiStore.activeNav === "theme" && <ThemeView />}
       </Sidebar>
 
-      <main className="main-area">
+      <main className="flex-1 flex flex-col min-w-0 bg-bg-workspace overflow-hidden">
         <Header />
-        <div className="workspace">
+        <div className="flex-1 flex flex-col p-3 gap-3 overflow-hidden">
           <QueryEditor />
           {graphStore.error && (
             <div className="error-box">

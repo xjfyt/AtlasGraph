@@ -1,5 +1,4 @@
 import GraphCanvas from "./GraphCanvas";
-import "./ResultPanel.css";
 import DetailPanel from "./DetailPanel";
 import GraphToolbar from "./GraphToolbar";
 import ContextMenu from "./ContextMenu";
@@ -34,27 +33,35 @@ export default function ResultPanel({
   const { graphData, execTime, drawingEdgeSource, setDrawingEdgeSource } = useGraphStore();
   const { activeTab, setActiveTab, detail, setDetail, setActiveTool } = useUIStore();
 
+  const getTabBtnClass = (isActive: boolean) => {
+    return `px-3.5 py-2.5 border-none bg-transparent text-[13px] font-medium cursor-pointer border-b-2 flex items-center gap-1.5 transition-all duration-150 [&>svg]:w-4 [&>svg]:h-4 ${
+      isActive
+        ? "text-accent border-accent font-semibold"
+        : "text-text-faint border-transparent hover:text-text-primary"
+    }`;
+  };
+
   return (
-    <div className="result-wrapper">
-      <div className={`result-panel ${detail ? "with-detail" : ""}`}>
-        <div className="result-tabs">
-          <div className="result-tabs-left">
-            <button className={`tab-btn ${activeTab === "graph" ? "active" : ""}`} onClick={() => setActiveTab("graph")}>
+    <div className="flex-1 min-h-0 flex gap-0 overflow-hidden">
+      <div className={`flex-1 min-w-0 bg-bg-card rounded-lg border border-border-primary flex flex-col overflow-hidden shadow-sm transition-[border-radius] duration-200 ${detail ? "rounded-tr-none rounded-br-none border-r-0" : ""}`}>
+        <div className="flex items-center justify-between border-b border-border-light bg-bg-secondary px-3.5 shrink-0">
+          <div className="flex gap-0">
+            <button className={getTabBtnClass(activeTab === "graph")} onClick={() => setActiveTab("graph")}>
               <IconGraph />Graph
             </button>
-            <button className={`tab-btn ${activeTab === "table" ? "active" : ""}`} onClick={() => setActiveTab("table")}>
+            <button className={getTabBtnClass(activeTab === "table")} onClick={() => setActiveTab("table")}>
               <IconTable />Table
             </button>
-            <button className={`tab-btn ${activeTab === "raw" ? "active" : ""}`} onClick={() => setActiveTab("raw")}>
+            <button className={getTabBtnClass(activeTab === "raw")} onClick={() => setActiveTab("raw")}>
               <IconRaw />RAW
             </button>
           </div>
-          <div className="result-tabs-right">
+          <div className="flex gap-1">
             <button className="icon-btn" title="全屏"><IconMaximize /></button>
           </div>
         </div>
 
-        <div className="graph-container">
+        <div className="flex-1 relative min-h-0 overflow-hidden bg-bg-graph">
           {activeTab === "graph" && (
             <>
               <GraphCanvas
@@ -69,66 +76,70 @@ export default function ResultPanel({
               <GraphToolbar />
               <ContextMenu handleMenuItemClick={handleMenuItemClick} />
               {drawingEdgeSource && (
-                <div style={{ position: 'absolute', top: 16, left: '50%', transform: 'translateX(-50%)', background: 'var(--brand-primary)', color: '#fff', padding: '8px 16px', borderRadius: 20, fontSize: 13, boxShadow: 'var(--shadow-md)', zIndex: 50, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-accent text-white px-4 py-2 rounded-full text-[13px] shadow-md z-50 flex items-center gap-2">
                   <span>请点击希望连接的目标节点...</span>
                   <button onClick={() => {
                     setDrawingEdgeSource(null);
                     setActiveTool("pointer");
-                  }} style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', opacity: 0.8, display: 'flex', alignItems: 'center' }}>
-                    <IconX />
+                  }} className="bg-transparent border-none text-white cursor-pointer opacity-80 flex items-center">
+                    <IconX className="w-4 h-4" />
                   </button>
                 </div>
               )}
             </>
           )}
           {activeTab === "table" && (
-            <div className="table-view">
+            <div className="absolute inset-0 overflow-auto p-3.5 bg-bg-secondary custom-scrollbar">
               {graphData.nodes.length > 0 ? (
-                <table className="data-table">
+                <table className="w-full border-collapse text-xs">
                   <thead>
                     <tr>
-                      <th>ID</th>
-                      <th>类型</th>
-                      <th>标签/关系</th>
-                      <th>属性</th>
+                      <th className="text-left px-3 py-2 bg-bg-tertiary border-b-2 border-border-primary font-semibold text-text-primary sticky top-0">ID</th>
+                      <th className="text-left px-3 py-2 bg-bg-tertiary border-b-2 border-border-primary font-semibold text-text-primary sticky top-0">类型</th>
+                      <th className="text-left px-3 py-2 bg-bg-tertiary border-b-2 border-border-primary font-semibold text-text-primary sticky top-0">标签/关系</th>
+                      <th className="text-left px-3 py-2 bg-bg-tertiary border-b-2 border-border-primary font-semibold text-text-primary sticky top-0">属性</th>
                     </tr>
                   </thead>
                   <tbody>
                     {graphData.nodes.map((n: any) => (
-                      <tr key={`n-${n.id}`} onClick={() => handleNodeClick(String(n.id))} style={{ cursor: 'pointer' }}>
-                        <td>{n.id}</td>
-                        <td><span className="detail-type-badge node">节点</span></td>
-                        <td>{(n.properties?._labels || []).join(", ")}</td>
-                        <td className="prop-cell">{n.properties?.name || JSON.stringify(n.properties).slice(0, 80)}</td>
+                      <tr key={`n-${n.id}`} onClick={() => handleNodeClick(String(n.id))} className="cursor-pointer hover:bg-bg-hover">
+                        <td className="px-3 py-1.5 border-b border-border-light text-text-primary">{n.id}</td>
+                        <td className="px-3 py-1.5 border-b border-border-light text-text-primary">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-blue-100 text-blue-800 dark:bg-blue-500/20 dark:text-blue-300">节点</span>
+                        </td>
+                        <td className="px-3 py-1.5 border-b border-border-light text-text-primary">{(n.properties?._labels || []).join(", ")}</td>
+                        <td className="px-3 py-1.5 border-b border-border-light text-text-primary font-mono text-[11px] max-w-[300px] overflow-hidden text-ellipsis whitespace-nowrap">{n.properties?.name || JSON.stringify(n.properties).slice(0, 80)}</td>
                       </tr>
                     ))}
                     {graphData.edges.map((e: any) => (
-                      <tr key={`e-${e.id}`} onClick={() => handleEdgeClick(String(e.id))} style={{ cursor: 'pointer' }}>
-                        <td>{e.id}</td>
-                        <td><span className="detail-type-badge edge">关系</span></td>
-                        <td>{e.label}</td>
-                        <td className="prop-cell">{e.source} → {e.target}</td>
+                      <tr key={`e-${e.id}`} onClick={() => handleEdgeClick(String(e.id))} className="cursor-pointer hover:bg-bg-hover">
+                        <td className="px-3 py-1.5 border-b border-border-light text-text-primary">{e.id}</td>
+                        <td className="px-3 py-1.5 border-b border-border-light text-text-primary">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-pink-100 text-pink-800 dark:bg-pink-500/20 dark:text-pink-300">关系</span>
+                        </td>
+                        <td className="px-3 py-1.5 border-b border-border-light text-text-primary">{e.label}</td>
+                        <td className="px-3 py-1.5 border-b border-border-light text-text-primary font-mono text-[11px] max-w-[300px] overflow-hidden text-ellipsis whitespace-nowrap">{e.source} → {e.target}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               ) : (
-                <div className="empty-msg">尚无数据</div>
+                <div className="h-full flex items-center justify-center text-text-faint font-medium">尚无数据</div>
               )}
             </div>
           )}
           {activeTab === "raw" && (
-            <div className="table-view">
+            <div className="absolute inset-0 overflow-auto p-3.5 bg-bg-secondary custom-scrollbar">
               {graphData.nodes.length > 0 ? (
-                <pre>{JSON.stringify(graphData, null, 2)}</pre>
+                <pre className="bg-bg-card border border-border-primary p-3.5 rounded-lg text-xs font-mono text-text-code whitespace-pre-wrap break-all">{JSON.stringify(graphData, null, 2)}</pre>
               ) : (
-                <div className="empty-msg">尚无数据</div>
+                <div className="h-full flex items-center justify-center text-text-faint font-medium">尚无数据</div>
               )}
             </div>
           )}
         </div>
 
-        <div className="result-footer">
+        <div className="h-[30px] min-h-[30px] bg-bg-secondary border-t border-border-light flex items-center px-3.5 text-[11px] text-text-faint gap-4">
           {execTime !== null && <span>Started streaming {graphData.nodes.length + graphData.edges.length} records after {execTime} ms</span>}
         </div>
       </div>

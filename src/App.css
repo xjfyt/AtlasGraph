@@ -1,5 +1,46 @@
-/* ===== 全局重置与字体 ===== */
+@import "tailwindcss";
 
+@theme {
+  --color-bg-primary: var(--bg-primary);
+  --color-bg-secondary: var(--bg-secondary);
+  --color-bg-tertiary: var(--bg-tertiary);
+  --color-bg-workspace: var(--bg-workspace);
+  --color-bg-hover: var(--bg-hover);
+  --color-bg-card: var(--bg-card);
+  --color-bg-overlay: var(--bg-overlay);
+  --color-bg-graph: var(--bg-graph);
+
+  --color-text-primary: var(--text-primary);
+  --color-text-heading: var(--text-heading);
+  --color-text-muted: var(--text-muted);
+  --color-text-faint: var(--text-faint);
+  --color-text-code: var(--text-code);
+
+  --color-border-primary: var(--border);
+  --color-border-light: var(--border-light);
+  --color-border-input-focus: var(--border-input-focus);
+
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-bg: var(--accent-bg);
+  --color-accent-bg-strong: var(--accent-bg-strong);
+  --color-accent-text: var(--accent-text);
+
+  --color-nav-bg: var(--nav-bg);
+  --color-nav-text: var(--nav-text);
+  --color-nav-hover-bg: var(--nav-hover-bg);
+  --color-nav-hover-text: var(--nav-hover-text);
+
+  --color-success-bg: var(--success-bg);
+  --color-success-text: var(--success-text);
+  --color-success-border: var(--success-border);
+
+  --color-error-bg: var(--error-bg);
+  --color-error-text: var(--error-text);
+  --color-error-border: var(--error-border);
+}
+
+/* ===== 全局重置与字体 ===== */
 /* ===== CSS 变量 - 浅色主题 ===== */
 :root {
   --bg-primary: #ffffff;
@@ -108,32 +149,6 @@ html, body, #root {
   overflow: hidden;
 }
 
-/* ===== 主布局 ===== */
-.app-layout {
-  display: flex;
-  width: 100%;
-  height: 100vh;
-  overflow: hidden;
-}
-
-/* ===== 主工作区 ===== */
-.main-area {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  background: var(--bg-workspace);
-  overflow: hidden;
-}
-
-.workspace {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  padding: 12px;
-  gap: 12px;
-  overflow: hidden;
-}
 
 /* ===== 错误提示 ===== */
 .error-box {
@@ -150,4 +165,55 @@ html, body, #root {
   gap: 8px;
   align-items: flex-start;
   word-break: break-all;
+}
+
+/* ===== 通用表单组件 ===== */
+@layer components {
+  .form-section {
+    @apply mb-5;
+  }
+  .form-section-title {
+    @apply text-[11px] font-semibold text-text-muted uppercase tracking-[0.06em] mb-2;
+  }
+  .form-group {
+    @apply mb-3;
+  }
+  .form-label {
+    @apply block text-[11px] font-semibold text-text-muted uppercase tracking-[0.04em] mb-1.5;
+  }
+  .form-input {
+    @apply w-full px-3 py-2 border border-border-primary rounded-lg text-[13px] font-mono text-text-code bg-bg-secondary outline-none transition-all duration-150;
+  }
+  .form-input:focus {
+    @apply border-border-input-focus ring-3 ring-accent-bg bg-bg-primary;
+  }
+  .form-hint {
+    @apply text-[11px] text-text-faint mt-1.5 leading-relaxed;
+  }
+  .readonly-option {
+    @apply flex items-center gap-2 mt-2.5 text-xs text-text-muted select-none;
+  }
+  .readonly-option input {
+    @apply m-0;
+  }
+  .icon-btn {
+    @apply w-7 h-7 flex items-center justify-center rounded-md border border-transparent bg-transparent text-text-muted cursor-pointer transition-all duration-150 hover:bg-bg-hover hover:text-text-heading hover:border-border-primary;
+  }
+  .icon-btn svg {
+    @apply w-4 h-4;
+  }
+}
+
+@layer utilities {
+  .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+  .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+  .custom-scrollbar::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 4px; }
+
+  @keyframes slideInRight {
+    from { transform: translateX(20px); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+  .animate-slide-in-right {
+    animation: slideInRight 0.2s ease;
+  }
 }

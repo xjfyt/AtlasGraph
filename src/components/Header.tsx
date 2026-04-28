@@ -1,5 +1,4 @@
 import { IconPanelLeft } from "./icons";
-import "./Header.css";
 import { useUIStore } from "../store/uiStore";
 import { useDBStore } from "../store/dbStore";
 
@@ -16,45 +15,56 @@ export default function Header() {
 
   const instanceLabel = dbType === "neo4j" ? uri : dbType === "kuzu" ? kuzuPath : lbugPath;
   return (
-    <div className="topbar">
-      <div className="topbar-left">
+    <div className="h-[44px] min-h-[44px] bg-bg-primary border-b border-border-primary flex items-center px-4 justify-between text-[13px]">
+      <div className="flex items-center gap-4">
         {sidebarCollapsed && (
           <button className="icon-btn" onClick={() => setSidebarCollapsed(false)} title="展开侧边栏">
             <IconPanelLeft />
           </button>
         )}
-        <div className="topbar-status">
-          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Instance:</span>
-          <div className={`status-dot ${connected ? "connected" : "disconnected"}`} />
-          <span style={{ fontFamily: "'SF Mono','Consolas',monospace", fontSize: 12 }}>
+        <div className="flex items-center gap-2 bg-bg-secondary px-3 py-1 rounded-md border border-border-primary">
+          <span className="text-xs text-text-muted">Instance:</span>
+          {connected ? (
+            <div className="relative flex h-2 w-2 shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-500 opacity-30"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+            </div>
+          ) : (
+            <div className="h-2 w-2 rounded-full bg-text-faint shrink-0" />
+          )}
+          <span className="font-mono text-xs">
             {instanceLabel}
           </span>
         </div>
         {connected && databases.length > 0 && (
-          <div className="topbar-db-info">
-            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Database:</span>
-            <span style={{ fontSize: 12, fontWeight: 500 }}>{selectedDb}</span>
+          <div className="flex items-center gap-1.5 bg-bg-secondary px-3 py-1 rounded-md border border-border-primary">
+            <span className="text-xs text-text-muted">Database:</span>
+            <span className="text-xs font-medium">{selectedDb}</span>
           </div>
         )}
         {connected && dbType === "neo4j" && (
-          <div className="topbar-db-info">
-            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>User:</span>
-            <span style={{ fontSize: 12, fontWeight: 500 }}>{user}</span>
+          <div className="flex items-center gap-1.5 bg-bg-secondary px-3 py-1 rounded-md border border-border-primary">
+            <span className="text-xs text-text-muted">User:</span>
+            <span className="text-xs font-medium">{user}</span>
           </div>
         )}
         {connected && (
-          <div className={`topbar-mode ${readOnly ? "readonly" : "readwrite"}`}>
+          <div className={`px-2.5 py-1 rounded-full border text-xs font-semibold ${
+            readOnly 
+              ? "text-amber-700 bg-orange-50 border-orange-300 dark:text-amber-500 dark:bg-amber-900/30 dark:border-amber-700/50" 
+              : "text-green-800 bg-green-50 border-green-300 dark:text-green-400 dark:bg-green-900/30 dark:border-green-800/50"
+          }`}>
             {readOnly ? "只读" : "读写"}
           </div>
         )}
         {connected && autoCreatedDb && (
-          <div className="topbar-note">
+          <div className="px-2.5 py-1 rounded-full border border-blue-300 text-xs font-semibold text-blue-700 bg-blue-50 dark:border-blue-800/50 dark:text-blue-400 dark:bg-blue-900/30">
             新建库
           </div>
         )}
       </div>
-      <div className="topbar-user">
-        引擎: <span style={{ textTransform: "uppercase" }}>{dbType}</span>
+      <div className="text-xs text-text-muted">
+        引擎: <span className="bg-bg-tertiary text-text-primary px-2 py-0.5 rounded font-medium ml-1 uppercase">{dbType}</span>
       </div>
     </div>
   );
