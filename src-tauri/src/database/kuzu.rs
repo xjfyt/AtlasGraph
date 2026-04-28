@@ -127,14 +127,24 @@ fn traverse_value(val: &KuzuValue, nodes: &mut std::collections::HashMap<String,
 
 fn extract_node(node: &NodeVal) -> GraphNode {
     let mut props = serde_json::Map::new();
-    for (k, v) in node.get_properties() { props.insert(k.clone(), val_to_json(v)); }
+    for (k, v) in node.get_properties() {
+        let jval = val_to_json(v);
+        if !jval.is_null() {
+            props.insert(k.clone(), jval);
+        }
+    }
     props.insert("_labels".to_string(), json!([node.get_label_name()]));
     GraphNode { id: format!("{}:{}", node.get_node_id().table_id, node.get_node_id().offset), properties: Value::Object(props) }
 }
 
 fn extract_rel(rel: &RelVal) -> GraphEdge {
     let mut props = serde_json::Map::new();
-    for (k, v) in rel.get_properties() { props.insert(k.clone(), val_to_json(v)); }
+    for (k, v) in rel.get_properties() {
+        let jval = val_to_json(v);
+        if !jval.is_null() {
+            props.insert(k.clone(), jval);
+        }
+    }
     let src = rel.get_src_node(); let dst = rel.get_dst_node(); let label = rel.get_label_name();
     GraphEdge {
         id: format!("{}:{}-{}->{}:{}", src.table_id, src.offset, label, dst.table_id, dst.offset),
@@ -145,6 +155,7 @@ fn extract_rel(rel: &RelVal) -> GraphEdge {
 
 fn val_to_json(val: &KuzuValue) -> Value {
     match val {
+        KuzuValue::Null(_) => Value::Null,
         KuzuValue::Bool(b) => json!(b),
         KuzuValue::Int64(i) => json!(i), KuzuValue::Int32(i) => json!(i), KuzuValue::Int16(i) => json!(i), KuzuValue::Int8(i) => json!(i),
         KuzuValue::UInt64(i) => json!(i), KuzuValue::UInt32(i) => json!(i), KuzuValue::UInt16(i) => json!(i), KuzuValue::UInt8(i) => json!(i),
