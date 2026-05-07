@@ -1,8 +1,9 @@
+import { useState, useEffect } from "react";
 import GraphCanvas from "./GraphCanvas";
 import DetailPanel from "./DetailPanel";
 import GraphToolbar from "./GraphToolbar";
 import ContextMenu from "./ContextMenu";
-import { IconGraph, IconTable, IconRaw, IconMaximize, IconX } from "./icons";
+import { IconGraph, IconTable, IconRaw, IconMaximize, IconMinimize, IconX } from "./icons";
 import { useGraphStore } from "../store/graphStore";
 import { useUIStore } from "../store/uiStore";
 
@@ -14,6 +15,7 @@ interface ResultPanelProps {
   handleCanvasClick: () => void;
   handleNodeRightClick: (nodeId: string, x: number, y: number) => void;
   handleEdgeRightClick: (edgeId: string, x: number, y: number) => void;
+  handleCanvasRightClick: (x: number, y: number) => void;
   handleGlobalSearch?: (text: string) => Promise<string[]>;
   handleMenuItemClick: (action: string) => void;
 
@@ -26,19 +28,38 @@ interface ResultPanelProps {
 export default function ResultPanel({
   mergedData,
   handleNodeClick, handleEdgeClick, handleCanvasClick,
-  handleNodeRightClick, handleEdgeRightClick, handleGlobalSearch, handleMenuItemClick,
+  handleNodeRightClick, handleEdgeRightClick, handleCanvasRightClick, handleGlobalSearch, handleMenuItemClick,
   handleSaveProp, handleDeleteProp,
   handleSaveTempEntity, handleCancelTempEntity
 }: ResultPanelProps) {
   const { graphData, execTime, drawingEdgeSource, setDrawingEdgeSource } = useGraphStore();
   const { activeTab, setActiveTab, detail, setDetail, setActiveTool } = useUIStore();
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
+  }, []);
 
   const getTabBtnClass = (isActive: boolean) => {
     return `tab-btn ${isActive ? "is-active" : ""}`;
   };
 
+  const handleToggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.getElementById('result-panel-root')?.requestFullscreen().catch(err => {
+        console.error(`Error attempting to enable fullscreen: ${err.message}`);
+      });
+    } else {
+      document.exitFullscreen();
+    }
+  };
+
   return (
-    <div className="flex-1 min-h-0 flex gap-0 overflow-hidden">
+    <div id="result-panel-root" className="flex-1 min-h-0 flex gap-0 overflow-hidden bg-bg-primary">
       <div className={`flex-1 min-w-0 bg-bg-card rounded-[10px] border border-border-primary flex flex-col overflow-hidden shadow-sm transition-[border-radius] duration-200 ${detail ? "rounded-tr-none rounded-br-none border-r-0" : ""}`}>
         <div className="result-tabs">
           <div className="result-tabs-left">
@@ -53,7 +74,9 @@ export default function ResultPanel({
             </button>
           </div>
           <div className="result-tabs-right">
-            <button className="tab-icon-btn" title="全屏"><IconMaximize /></button>
+            <button className="tab-icon-btn" title={isFullscreen ? "退出全屏" : "全屏"} onClick={handleToggleFullscreen}>
+              {isFullscreen ? <IconMinimize /> : <IconMaximize />}
+            </button>
           </div>
         </div>
 
@@ -67,6 +90,7 @@ export default function ResultPanel({
                 onCanvasClick={handleCanvasClick}
                 onNodeRightClick={handleNodeRightClick}
                 onEdgeRightClick={handleEdgeRightClick}
+                onCanvasRightClick={handleCanvasRightClick}
                 onGlobalSearch={handleGlobalSearch}
               />
               <GraphToolbar />

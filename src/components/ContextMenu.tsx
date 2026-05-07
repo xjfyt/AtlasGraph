@@ -1,4 +1,4 @@
-import { Maximize, EyeOff, PinOff, Link, Undo2, Trash2 } from "lucide-react";
+import { Maximize, EyeOff, PinOff, Link, Undo2, Trash2, PlusSquare, Eraser } from "lucide-react";
 import { useUIStore } from "../store/uiStore";
 
 export interface ContextMenuProps {
@@ -67,6 +67,16 @@ export default function ContextMenu({ handleMenuItemClick }: ContextMenuProps) {
           <div className="context-menu-divider" />
           <button className="context-menu-item delete" style={{ color: 'var(--error-text)' }} onClick={() => handleMenuItemClick("delete_db")}>
             <Trash2 size={16} /> 删除关系
+          </button>
+        </>
+      ) : contextMenu.type === "canvas" ? (
+        <>
+          <button className="context-menu-item" onClick={() => handleMenuItemClick("add_node")}>
+            <PlusSquare size={16} /> 添加新节点
+          </button>
+          <div className="context-menu-divider" />
+          <button className="context-menu-item" onClick={() => handleMenuItemClick("clear_canvas")}>
+            <Eraser size={16} /> 清空当前画布
           </button>
         </>
       ) : null}

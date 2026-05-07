@@ -575,6 +575,36 @@ select.form-input {
   word-break: break-all;
 }
 
+/* ===== 右键菜单 ===== */
+.context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 16px;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s;
+}
+.context-menu-item:hover {
+  background: var(--bg-hover);
+}
+.context-menu-item svg {
+  flex-shrink: 0;
+}
+.context-menu-item.delete:hover {
+  background: var(--error-bg);
+}
+.context-menu-divider {
+  height: 1px;
+  background: var(--border-light);
+  margin: 4px 0;
+}
+
 @layer utilities {
   .custom-scrollbar::-webkit-scrollbar { width: 4px; }
   .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }

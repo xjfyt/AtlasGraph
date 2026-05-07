@@ -200,6 +200,10 @@ function App() {
     uiStore.setContextMenu({ type: "edge", id: edgeId, x, y });
   }, []);
 
+  const handleCanvasRightClick = useCallback((x: number, y: number) => {
+    uiStore.setContextMenu({ type: "canvas", id: "canvas", x, y });
+  }, []);
+
   const executeCypher = async (queryText: string, engine: string = dbStore.dbType) => {
     return invoke("execute_cypher", {
       request: { query: queryText, db_type: engine },
@@ -210,6 +214,15 @@ function App() {
     if (!uiStore.contextMenu) return;
     const { type, id } = uiStore.contextMenu;
     uiStore.setContextMenu(null);
+
+    if (action === "add_node") {
+      uiStore.setActiveTool("create_node");
+      return;
+    } else if (action === "clear_canvas") {
+      graphStore.setGraphData({ nodes: [], edges: [] });
+      graphStore.setTempData({ nodes: [], edges: [] });
+      return;
+    }
 
     if (action === "dismiss") {
       if (type === "node") {
@@ -643,19 +656,20 @@ function App() {
             </div>
           )}
           <ResultPanel
-            mergedData={mergedData}
-            handleNodeClick={handleNodeClick}
-            handleEdgeClick={handleEdgeClick}
-            handleCanvasClick={handleCanvasClick}
-            handleNodeRightClick={handleNodeRightClick}
-            handleEdgeRightClick={handleEdgeRightClick}
-            handleGlobalSearch={handleGlobalSearch}
-            handleMenuItemClick={handleMenuItemClick}
-            handleSaveProp={handleSaveProp}
-            handleDeleteProp={handleDeleteProp}
-            handleSaveTempEntity={handleSaveTempEntity}
-            handleCancelTempEntity={handleCancelTempEntity}
-          />
+              mergedData={mergedData}
+              handleNodeClick={handleNodeClick}
+              handleEdgeClick={handleEdgeClick}
+              handleCanvasClick={handleCanvasClick}
+              handleNodeRightClick={handleNodeRightClick}
+              handleEdgeRightClick={handleEdgeRightClick}
+              handleCanvasRightClick={handleCanvasRightClick}
+              handleGlobalSearch={handleGlobalSearch}
+              handleMenuItemClick={handleMenuItemClick}
+              handleSaveProp={handleSaveProp}
+              handleDeleteProp={handleDeleteProp}
+              handleSaveTempEntity={handleSaveTempEntity}
+              handleCancelTempEntity={handleCancelTempEntity}
+            />
         </div>
       </main>
     </div>

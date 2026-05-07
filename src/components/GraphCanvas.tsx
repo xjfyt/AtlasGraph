@@ -1,7 +1,7 @@
 import { useRef, useMemo, useCallback, useEffect, useState } from "react";
 import { InteractiveNvlWrapper } from "@neo4j-nvl/react";
 import type { Node, Relationship, HitTargets } from "@neo4j-nvl/base";
-import { ZoomIn, ZoomOut, Focus, Search, X, Download } from "lucide-react";
+import { ZoomIn, ZoomOut, Focus, Search, X, Download, Maximize, Minimize } from "lucide-react";
 
 interface GraphCanvasProps {
   data: { nodes: any[]; edges: any[] };
@@ -44,9 +44,30 @@ export default function GraphCanvas({
   const callbacksRef = useRef({ onNodeClick, onEdgeClick, onCanvasClick, onNodeRightClick, onEdgeRightClick, onCanvasRightClick });
   callbacksRef.current = { onNodeClick, onEdgeClick, onCanvasClick, onNodeRightClick, onEdgeRightClick, onCanvasRightClick };
   const nvlRef = useRef<any>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [searchText, setSearchText] = useState("");
   const [searching, setSearching] = useState(false);
   const [searchMsg, setSearchMsg] = useState<string | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
+  }, []);
+
+  const handleToggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      const target = document.getElementById('result-panel-root') || containerRef.current;
+      target?.requestFullscreen().catch(err => {
+        console.error(`Error attempting to enable fullscreen: ${err.message}`);
+      });
+    } else {
+      document.exitFullscreen();
+    }
+  };
 
   const nvlNodes: Node[] = useMemo(() => {
     return data.nodes.map((n) => {
@@ -240,7 +261,7 @@ export default function GraphCanvas({
 
 // Removed early return allowing empty canvas to be rendered
   return (
-    <div style={{ width: "100%", height: "100%", position: "absolute", inset: 0 }}>
+    <div ref={containerRef} style={{ width: "100%", height: "100%", position: "absolute", inset: 0 }}>
       <InteractiveNvlWrapper
         ref={nvlRef}
         nodes={nvlNodes}
@@ -342,6 +363,13 @@ export default function GraphCanvas({
           style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", background: "transparent", border: "none", borderRadius: 4, cursor: "pointer", color: "#475569" }}
         >
           <Focus size={18} />
+        </button>
+        <button 
+          onClick={handleToggleFullscreen} 
+          title={isFullscreen ? "退出全屏" : "全屏"} 
+          style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", background: "transparent", border: "none", borderRadius: 4, cursor: "pointer", color: "#475569" }}
+        >
+          {isFullscreen ? <Minimize size={18} /> : <Maximize size={18} />}
         </button>
       </div>
     </div>

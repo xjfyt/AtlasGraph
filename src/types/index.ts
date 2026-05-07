@@ -19,7 +19,7 @@ export interface HistoryItem {
 export type ThemeMode = "light" | "dark" | "system";
 
 export interface ContextMenuState {
-  type: "node" | "edge";
+  type: "node" | "edge" | "canvas";
   id: string;
   x: number;
   y: number;
