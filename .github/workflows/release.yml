@@ -89,7 +89,20 @@ jobs:
           # 绑定到触发 workflow 的真实 git tag (例如我们刚才打的 v0.1.1)
           tagName: ${{ github.ref_name }} 
           releaseName: 'AtlasGraph ${{ github.ref_name }}'
-          releaseBody: '通过 GitHub Actions 自动构建的多平台、多数据库组合 Release 版本。'
+          releaseBody: |
+            ## 🎉 AtlasGraph ${{ github.ref_name }} 发布！
+
+            **🚀 主要更新内容**
+            - 新增全屏功能
+            - 新增画布右键菜单功能
+
+            **🛠 构建说明**
+            由 GitHub Actions 自动构建的多平台、多数据库支持组合版本。
+
+            > **下载指引**:
+            > - **Standalone**: 纯净免安装单体运行版
+            > - **msi / AppImage / dmg**: 安装包版
+            > - 根据后缀选择您所需的数据库驱动版本 (neo4j / lbug / kuzu 等)
           releaseDraft: true
           prerelease: false
           # 透传特征参数并在最后附带 --no-default-features 至 Cargo
