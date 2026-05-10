@@ -7,7 +7,24 @@ on:
   workflow_dispatch: # 允许在 GitHub Actions 网站上手动触发
 
 jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=${{ github.ref_name }}
+          # Create a formal release using the release_notes.md template
+          if ! gh release view $VERSION > /dev/null 2>&1; then
+            gh release create $VERSION --title "AtlasGraph $VERSION" --notes-file .github/release_notes.md --draft=false
+          fi
+
   build:
+    needs: create-release
     permissions:
       contents: write
     strategy:
@@ -68,48 +85,19 @@ jobs:
             pkg.atlasConfig.features = '${FEATURES_STR}'.split(',');
             fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2));
           "
-          
-          # 动态修改 productName，防止不同平台下的各个功能组合包名字冲突且互相覆盖
-          node -e "
-            const fs = require('fs');
-            const conf = JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json', 'utf8'));
-            conf.productName = conf.productName + '-' + '${SUFFIX}';
-            fs.writeFileSync('src-tauri/tauri.conf.json', JSON.stringify(conf, null, 2));
-          "
 
       - name: Install frontend dependencies
         run: npm install
 
-      # 使用官方 Tauri action 打包 (由于它默认只传 bundle，不传原始 exe二进制)
-      - name: Build Tauri and release bundle
+      # 使用官方 Tauri action 打包 (由于移除了 tagName 等参数，不再触发内置上传)
+      - name: Build Tauri
         uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          # 绑定到触发 workflow 的真实 git tag (例如我们刚才打的 v0.1.1)
-          tagName: ${{ github.ref_name }} 
-          releaseName: 'AtlasGraph ${{ github.ref_name }}'
-          releaseBody: |
-            ## 🎉 AtlasGraph ${{ github.ref_name }} 发布！
-
-            **🚀 主要更新内容**
-            - 新增全屏功能
-            - 新增画布右键菜单功能
-
-            **🛠 构建说明**
-            由 GitHub Actions 自动构建的多平台、多数据库支持组合版本。
-
-            > **下载指引**:
-            > - **Standalone**: 纯净免安装单体运行版
-            > - **msi / AppImage / dmg**: 安装包版
-            > - 根据后缀选择您所需的数据库驱动版本 (neo4j / lbug / kuzu 等)
-          releaseDraft: true
-          prerelease: false
           # 透传特征参数并在最后附带 --no-default-features 至 Cargo
           args: --features ${{ matrix.features }} -- --no-default-features
 
-      # 追加上传单体/纯净可执行文件 (免安装版)
-      - name: Upload Standalone Executable
+      # 手动重命名 Bundle 防止冲突并上传到 Github Release
+      - name: Rename and Upload Bundles
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -117,7 +105,29 @@ jobs:
           FEATURES_STR="${{ matrix.features }}"
           SUFFIX="${FEATURES_STR//,/_}"
           
-          # 根据不同架构系统寻找单体可执行文件并重命名为更明确的标识
+          # Iterate over all generated bundles and installers
+          find src-tauri/target/release/bundle -type f -name "AtlasGraph_*" | while read file; do
+            dir=$(dirname "$file")
+            filename=$(basename "$file")
+            
+            # e.g., AtlasGraph_0.1.5_aarch64.dmg -> AtlasGraph-neo4j_lbug_0.1.5_aarch64.dmg
+            new_name=$(echo "$filename" | sed "s/^AtlasGraph_/AtlasGraph-${SUFFIX}_/")
+            
+            mv "$file" "$dir/$new_name"
+            echo "Uploading $new_name to release ${{ github.ref_name }}..."
+            gh release upload ${{ github.ref_name }} "$dir/$new_name" --clobber
+          done
+
+      # 追加上传单体/纯净可执行文件 (免安装版，仅 Windows 保留)
+      - name: Upload Standalone Executable
+        if: startsWith(matrix.platform, 'windows')
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          FEATURES_STR="${{ matrix.features }}"
+          SUFFIX="${FEATURES_STR//,/_}"
+          
           PLATFORM_NAME="${{ matrix.platform }}"
           if [[ "$PLATFORM_NAME" == "windows-latest" ]]; then
             OS_ARCH="windows-x86_64"
@@ -127,18 +137,6 @@ jobs:
             OS_ARCH="windows-arm64"
             EXE_PATH="src-tauri/target/release/atlas-graph.exe"
             EXT=".exe"
-          elif [[ "$PLATFORM_NAME" == "macos-latest" ]]; then
-            OS_ARCH="macos-arm64"
-            EXE_PATH="src-tauri/target/release/atlas-graph"
-            EXT=""
-          elif [[ "$PLATFORM_NAME" == "ubuntu-24.04" ]]; then
-            OS_ARCH="linux-x86_64"
-            EXE_PATH="src-tauri/target/release/atlas-graph"
-            EXT=""
-          elif [[ "$PLATFORM_NAME" == "ubuntu-24.04-arm" ]]; then
-            OS_ARCH="linux-arm64"
-            EXE_PATH="src-tauri/target/release/atlas-graph"
-            EXT=""
           fi
           
           NEW_NAME="AtlasGraph-standalone-${SUFFIX}-${OS_ARCH}${EXT}"
