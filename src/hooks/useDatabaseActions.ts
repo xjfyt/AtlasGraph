@@ -178,8 +178,9 @@ export function useDatabaseActions() {
     try {
       await invoke("switch_database", { dbType: dbStore.dbType, dbName });
       fetchSchema(dbStore.dbType);
+      handleExecute("MATCH p=()-[]->() RETURN p LIMIT 25;", dbStore.dbType);
     } catch (_) { /* ignore */ }
-  }, [dbStore, fetchSchema]);
+  }, [dbStore, fetchSchema, handleExecute]);
 
   return { fetchSchema, handleExecute, handleConnect, handleDbSwitch };
 }
