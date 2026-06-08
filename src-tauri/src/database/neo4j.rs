@@ -41,11 +41,12 @@ pub async fn connect(state: &AppState, req: &ConnectRequest) -> Result<ConnectRe
 }
 
 pub async fn execute(state: &AppState, cypher: &str) -> Result<GraphData, AppError> {
+    let db = { state.connection_info.lock().await.database.clone() };
     let graph_lock = state.neo4j_graph.lock().await;
     let graph = graph_lock.as_ref().ok_or_else(|| AppError::ConnectionError("Neo4j 连接已断开，请重新连接".into()))?;
-    if super::is_write_query(cypher) { return execute_write(graph, cypher).await; }
+    if super::is_write_query(cypher) { return execute_write(graph, &db, cypher).await; }
 
-    let mut result = graph.execute(query(cypher)).await.map_err(|e| AppError::QueryError(format!("查询执行失败: {}", e)))?;
+    let mut result = graph.execute_on(&db, query(cypher)).await.map_err(|e| AppError::QueryError(format!("查询执行失败: {}", e)))?;
     let mut nodes: Vec<GraphNode> = Vec::new(); let mut edges: Vec<GraphEdge> = Vec::new();
     let mut seen_node_ids = std::collections::HashSet::new(); let mut seen_edge_ids = std::collections::HashSet::new();
     let aliases = super::extract_return_aliases(cypher);
@@ -55,8 +56,8 @@ pub async fn execute(state: &AppState, cypher: &str) -> Result<GraphData, AppErr
     Ok(GraphData { nodes, edges })
 }
 
-async fn execute_write(graph: &Graph, cypher: &str) -> Result<GraphData, AppError> {
-    let mut txn = graph.start_txn().await.map_err(|e| AppError::SystemError(format!("开启事务失败: {}", e)))?;
+async fn execute_write(graph: &Graph, db: &str, cypher: &str) -> Result<GraphData, AppError> {
+    let mut txn = graph.start_txn_on(db.to_string()).await.map_err(|e| AppError::SystemError(format!("开启事务失败: {}", e)))?;
     let mut nodes: Vec<GraphNode> = Vec::new(); let mut edges: Vec<GraphEdge> = Vec::new();
     let mut seen_node_ids = std::collections::HashSet::new(); let mut seen_edge_ids = std::collections::HashSet::new();
     let aliases = super::extract_return_aliases(cypher);
@@ -77,7 +78,7 @@ async fn execute_write(graph: &Graph, cypher: &str) -> Result<GraphData, AppErro
 pub async fn list_databases(state: &AppState) -> Result<Vec<DatabaseInfo>, AppError> {
     let graph_lock = state.neo4j_graph.lock().await;
     let graph = graph_lock.as_ref().ok_or_else(|| AppError::ConnectionError("Neo4j 连接不存在".into()))?;
-    let mut result = graph.execute(query("SHOW DATABASES")).await.map_err(|e| AppError::QueryError(format!("查询数据库列表失败: {}", e)))?;
+    let mut result = graph.execute_on("system", query("SHOW DATABASES")).await.map_err(|e| AppError::QueryError(format!("查询数据库列表失败: {}", e)))?;
     let mut databases = Vec::new();
     while let Ok(Some(row)) = result.next().await {
         let name: String = row.get("name").unwrap_or_default();
@@ -102,18 +103,19 @@ pub async fn switch_database(state: &AppState, db_name: &str) -> Result<String, 
 
 pub async fn get_schema_stats(state: &AppState) -> Result<SchemaStats, AppError> {
     let mut stats = SchemaStats { total_nodes: 0, total_edges: 0, labels: Vec::new(), rel_types: Vec::new() };
+    let db = { state.connection_info.lock().await.database.clone() };
     let graph_lock = state.neo4j_graph.lock().await;
     let graph = graph_lock.as_ref().ok_or_else(|| AppError::ConnectionError("Neo4j 连接已断开".into()))?;
-    if let Ok(mut res) = graph.execute(query("MATCH (n) RETURN count(n) AS c")).await {
+    if let Ok(mut res) = graph.execute_on(&db, query("MATCH (n) RETURN count(n) AS c")).await {
         if let Ok(Some(row)) = res.next().await { stats.total_nodes = row.get("c").unwrap_or(0); }
     }
-    if let Ok(mut res) = graph.execute(query("MATCH ()-[r]->() RETURN count(r) AS c")).await {
+    if let Ok(mut res) = graph.execute_on(&db, query("MATCH ()-[r]->() RETURN count(r) AS c")).await {
         if let Ok(Some(row)) = res.next().await { stats.total_edges = row.get("c").unwrap_or(0); }
     }
-    if let Ok(mut res) = graph.execute(query("MATCH (n) WITH labels(n) AS labels UNWIND labels AS label RETURN label, count(*) AS c")).await {
+    if let Ok(mut res) = graph.execute_on(&db, query("MATCH (n) WITH labels(n) AS labels UNWIND labels AS label RETURN label, count(*) AS c")).await {
         while let Ok(Some(row)) = res.next().await { stats.labels.push(ItemCount { name: row.get("label").unwrap_or_default(), count: row.get("c").unwrap_or(0) }); }
     }
-    if let Ok(mut res) = graph.execute(query("MATCH ()-[r]->() RETURN type(r) AS type, count(*) AS c")).await {
+    if let Ok(mut res) = graph.execute_on(&db, query("MATCH ()-[r]->() RETURN type(r) AS type, count(*) AS c")).await {
         while let Ok(Some(row)) = res.next().await { stats.rel_types.push(ItemCount { name: row.get("type").unwrap_or_default(), count: row.get("c").unwrap_or(0) }); }
     }
     stats.labels.sort_by(|a, b| b.count.cmp(&a.count).then(a.name.cmp(&b.name)));
