@@ -18,9 +18,10 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION=${{ github.ref_name }}
-          # Create a formal release using the release_notes.md template
+          # 先以草稿形式创建 release：仓库启用了 immutable releases，
+          # 正式发布后无法再上传资产，因此必须等所有构建上传完成后再发布
           if ! gh release view $VERSION > /dev/null 2>&1; then
-            gh release create $VERSION --title "AtlasGraph $VERSION" --notes-file .github/release_notes.md --draft=false
+            gh release create $VERSION --title "AtlasGraph $VERSION" --notes-file .github/release_notes.md --draft
           fi
 
   build:
@@ -148,3 +149,16 @@ jobs:
           else
             echo "Warning: Standalone executable not found at $EXE_PATH"
           fi
+
+  # 所有平台构建并上传成功后，才将草稿正式发布（发布后 release 即不可变）
+  publish-release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Publish Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release edit ${{ github.ref_name }} --draft=false
